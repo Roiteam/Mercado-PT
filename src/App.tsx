@@ -13,6 +13,7 @@ import {
   CHAIN_TONE,
   euro,
   formatDate,
+  joinPt,
   loadHouseholdId,
   loadList,
   loadPostal,
@@ -384,9 +385,9 @@ export default function App() {
                   Podes ir acrescentando produtos ao longo dos dias. Quando fores às
                   compras, comparamos os preços nos supermercados perto de ti
                   {pricedNearby.length
-                    ? ` (preços online: ${pricedNearby
-                        .map((c) => (c === "pingo_doce" ? "Pingo Doce" : "Continente"))
-                        .join(" e ")}).`
+                    ? ` (preços online: ${joinPt(
+                        pricedNearby.map((c) => CHAIN_LABEL[c]),
+                      )}). Aldi e Intermarché só nos folhetos.`
                     : "."}
                 </p>
                 <form
@@ -839,8 +840,8 @@ function DealsBoard({
           ) : null}
           {!loading && filteredOffers.length ? (
             <p className="hint">
-              Preços dos catálogos online Continente e Pingo Doce. Lidl, Aldi, Auchan
-              e Intermarché consultam-se nos folhetos.
+              Preços dos catálogos online Continente, Pingo Doce, Auchan e Lidl.
+              Aldi e Intermarché consultam-se nos folhetos.
             </p>
           ) : null}
         </>
@@ -979,9 +980,12 @@ function SplitView({
         </div>
       ) : null}
       <p className="disclaimer">
-        Preços de produto dos catálogos online Continente e Pingo Doce; Lidl, Aldi,
-        Auchan e Intermarché consultam-se nos folhetos. Em loja os preços podem
-        ser diferentes.
+        {split.pricedChains?.length
+          ? `Comparamos preços online de ${joinPt(
+              split.pricedChains.map((c) => CHAIN_LABEL[c]),
+            )}. `
+          : "Comparamos preços online de Continente, Pingo Doce, Auchan e Lidl. "}
+        Aldi e Intermarché só nos folhetos. Em loja os preços podem ser diferentes.
       </p>
     </section>
   );

@@ -78,6 +78,7 @@ export type OptimizeResponse = {
     savings: number;
   };
   generatedAt: string;
+  pricedChains?: ChainId[];
 };
 
 export type StoresResponse = {

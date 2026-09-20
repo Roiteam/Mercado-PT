@@ -12,7 +12,12 @@ export const CHAIN_LABEL: Record<ChainId, string> = {
   other: "Outro",
 };
 
-export const PRICED_CHAINS: ChainId[] = ["continente", "pingo_doce"];
+export const PRICED_CHAINS: ChainId[] = [
+  "continente",
+  "pingo_doce",
+  "auchan",
+  "lidl",
+];
 
 const RULES: { chain: ChainId; test: RegExp }[] = [
   { chain: "continente", test: /continente/i },

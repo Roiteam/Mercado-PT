@@ -2,8 +2,7 @@ import type { Config } from "@netlify/functions";
 import { errorJson, json, mapPool } from "./_shared/http.ts";
 import { CHAIN_LABEL, parsePostalCode, PRICED_CHAINS, round2 } from "./_shared/geo.ts";
 import { findNearbyStores, geocodePostal, nearestByChain } from "./_shared/stores.ts";
-import { searchContinente } from "./_shared/adapters/continente.ts";
-import { searchPingoDoce } from "./_shared/adapters/pingodoce.ts";
+import { searchChain } from "./_shared/catalogs.ts";
 import { expandQuery, pickBest } from "./_shared/match.ts";
 import type {
   ChainId,
@@ -118,6 +117,7 @@ export default async (req: Request) => {
         savings: oneStore ? round2(Math.max(0, oneStore.total - split)) : 0,
       },
       generatedAt: new Date().toISOString(),
+      pricedChains: usable,
     };
     return json(payload);
   } catch (err) {
@@ -125,12 +125,6 @@ export default async (req: Request) => {
     return errorJson(message, 502);
   }
 };
-
-function searchChain(chain: ChainId, query: string) {
-  if (chain === "continente") return searchContinente(query, 8);
-  if (chain === "pingo_doce") return searchPingoDoce(query, 8);
-  return Promise.resolve([] as Product[]);
-}
 
 function compareDeal(a: Product, b: Product) {
   const pa = a.unitPrice && a.unitPrice > 0 ? a.unitPrice : a.price;

@@ -1,7 +1,6 @@
 import type { Config } from "@netlify/functions";
 import { errorJson, json } from "./_shared/http.ts";
-import { searchContinente } from "./_shared/adapters/continente.ts";
-import { searchPingoDoce } from "./_shared/adapters/pingodoce.ts";
+import { searchChain } from "./_shared/catalogs.ts";
 import { expandQuery } from "./_shared/match.ts";
 import type { ChainId, Product } from "./_shared/types.ts";
 
@@ -10,15 +9,13 @@ export default async (req: Request) => {
   const url = new URL(req.url);
   const q = (url.searchParams.get("q") ?? "").trim();
   if (q.length < 2) return errorJson("Pesquisa com pelo menos 2 caracteres.");
-  const chains = (url.searchParams.get("chains") ?? "continente,pingo_doce")
+  const chains = (url.searchParams.get("chains") ?? "continente,pingo_doce,auchan,lidl")
     .split(",")
     .map((c) => c.trim()) as ChainId[];
   const query = expandQuery(q);
 
   try {
-    const jobs: Promise<Product[]>[] = [];
-    if (chains.includes("continente")) jobs.push(searchContinente(query, 8));
-    if (chains.includes("pingo_doce")) jobs.push(searchPingoDoce(query, 8));
+    const jobs = chains.map((chain) => searchChain(chain, query, 8));
     const products = (await Promise.all(jobs.map((j) => j.catch(() => [] as Product[]))))
       .flat()
       .sort((a, b) => a.price - b.price)
