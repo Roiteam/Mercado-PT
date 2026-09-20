@@ -21,6 +21,12 @@ body,
   min-height: 100%;
 }
 
+html {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   color: var(--ink);
@@ -40,7 +46,7 @@ h3 {
 }
 
 h1 {
-  font-size: clamp(2.2rem, 5vw, 3.4rem);
+  font-size: clamp(1.7rem, 8vw, 2.2rem);
 }
 
 button,
@@ -55,16 +61,25 @@ button {
 
 .page {
   max-width: 1180px;
+  width: 100%;
   margin: 0 auto;
-  padding: 28px 20px 96px;
+  padding: 16px 14px calc(108px + env(safe-area-inset-bottom, 0px));
+  overflow-x: hidden;
+}
+
+.layout,
+.col,
+.col > * {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .top {
   display: flex;
-  justify-content: space-between;
-  align-items: end;
-  gap: 16px;
-  margin-bottom: 28px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  margin-bottom: 18px;
 }
 
 .top-actions {
@@ -72,7 +87,8 @@ button {
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
-  justify-content: end;
+  justify-content: stretch;
+  width: 100%;
 }
 
 .app-nav {
@@ -81,6 +97,8 @@ button {
   padding: 4px;
   background: #efe3cf;
   border-radius: 999px;
+  flex: 1;
+  width: 100%;
 }
 
 .app-nav button {
@@ -89,6 +107,8 @@ button {
   border-radius: 999px;
   padding: 0.55rem 1rem;
   font-weight: 700;
+  flex: 1;
+  min-height: 44px;
 }
 
 .app-nav button.on {
@@ -120,6 +140,11 @@ button {
   border: 1px solid var(--line);
 }
 
+.top-actions .ghost {
+  width: 100%;
+  min-height: 44px;
+}
+
 .primary {
   background: var(--leaf);
   color: white;
@@ -147,16 +172,23 @@ button {
 }
 
 .gate {
-  padding: 36px;
-  border-radius: 28px;
-  max-width: 640px;
+  padding: 22px 16px;
+  border-radius: 22px;
+  max-width: none;
 }
 
 .gate form,
 .add-row {
   display: flex;
+  flex-direction: column;
   gap: 10px;
   margin: 18px 0 10px;
+}
+
+.gate form .primary,
+.add-row button {
+  width: 100%;
+  min-height: 48px;
 }
 
 .gate input,
@@ -177,13 +209,25 @@ button {
 
 .chips {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
   margin-top: 18px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.chips::-webkit-scrollbar {
+  display: none;
 }
 
 .chips button {
   background: #efe3cf;
+  flex: 0 0 auto;
+  min-height: 40px;
 }
 
 .chips button.on,
@@ -195,7 +239,7 @@ button {
 .deals-head {
   display: flex;
   justify-content: space-between;
-  align-items: end;
+  align-items: stretch;
   gap: 12px;
   flex-wrap: wrap;
 }
@@ -203,25 +247,33 @@ button {
 .tabs {
   display: flex;
   gap: 8px;
+  width: 100%;
 }
 
 .tab {
   border: 1px solid var(--line);
   background: #efe3cf;
   border-radius: 999px;
-  padding: 0.55rem 1rem;
+  padding: 0.65rem 0.4rem;
   font-weight: 700;
+  flex: 1;
+  min-height: 44px;
+  font-size: 0.88rem;
+  text-align: center;
 }
 
 .filters {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin: 14px 0 8px;
   align-items: center;
 }
 
 .filters input {
-  flex: 1;
+  flex: 1 1 100%;
+  min-width: 0;
+  min-height: 44px;
   border: 1px solid var(--line);
   background: #fff;
   border-radius: 999px;
@@ -233,13 +285,15 @@ button {
   align-items: center;
   gap: 8px;
   color: var(--muted);
-  white-space: nowrap;
+  white-space: normal;
 }
 
-.flyer-grid {
+.flyer-grid,
+.offer-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  min-width: 0;
 }
 
 .flyer {
@@ -273,11 +327,17 @@ button {
 
 .location {
   display: flex;
+  flex-direction: column;
   justify-content: space-between;
   gap: 16px;
-  padding: 18px 20px;
+  padding: 16px;
   border-radius: 22px;
-  align-items: center;
+  align-items: stretch;
+}
+
+.location label,
+.location select {
+  width: 100%;
 }
 
 .location label {
@@ -314,9 +374,15 @@ button {
 
 .list-card.current {
   display: flex;
+  flex-direction: column;
   justify-content: space-between;
-  align-items: center;
+  align-items: stretch;
   gap: 16px;
+}
+
+.list-card.current .primary {
+  width: 100%;
+  min-height: 44px;
 }
 
 .list-card-main {
@@ -340,12 +406,14 @@ button {
 }
 
 .store-row {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(200px, 1fr);
+  display: flex;
   gap: 12px;
   overflow-x: auto;
   padding-bottom: 8px;
+  min-width: 0;
+  max-width: 100%;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
 }
 
 .store-card {
@@ -356,6 +424,8 @@ button {
   display: grid;
   gap: 4px;
   min-height: 132px;
+  flex: 0 0 min(78vw, 280px);
+  scroll-snap-align: start;
 }
 
 .store-card em,
@@ -372,12 +442,6 @@ button {
   display: inline-block;
 }
 
-.offer-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 14px;
-}
-
 .offer {
   padding: 12px;
   border-radius: 18px;
@@ -390,7 +454,7 @@ button {
 .flyer img,
 .ph {
   width: 100%;
-  height: 120px;
+  height: 96px;
   object-fit: contain;
   background: #f6efe2;
   border-radius: 12px;
@@ -416,10 +480,12 @@ button {
   font-weight: 700;
 }
 
-.offer h3 {
-  font-size: 1rem;
+.offer h3,
+.flyer h3 {
+  font-size: 0.92rem;
   font-family: Manrope, sans-serif;
   letter-spacing: 0;
+  overflow-wrap: anywhere;
 }
 
 .price {
@@ -439,8 +505,8 @@ button {
 
 .list-fab {
   position: fixed;
-  right: 20px;
-  bottom: 20px;
+  right: max(14px, env(safe-area-inset-right, 0px));
+  bottom: max(14px, env(safe-area-inset-bottom, 0px));
   z-index: 30;
   display: flex;
   align-items: center;
@@ -451,6 +517,7 @@ button {
   background: var(--leaf);
   color: #fff;
   font-weight: 700;
+  min-height: 48px;
   box-shadow: 0 12px 28px rgba(36, 92, 56, 0.28);
 }
 
@@ -486,12 +553,14 @@ button {
 
 .list-panel {
   position: absolute;
-  top: 0;
+  top: auto;
   right: 0;
-  width: min(400px, 100%);
-  height: 100%;
-  padding: 22px;
-  border-radius: 24px 0 0 24px;
+  left: 0;
+  width: 100%;
+  height: min(86dvh, 100%);
+  max-height: calc(100dvh - env(safe-area-inset-top, 0px));
+  padding: 18px 16px calc(22px + env(safe-area-inset-bottom, 0px));
+  border-radius: 24px 24px 0 0;
   overflow: auto;
   box-shadow: var(--shadow);
 }
@@ -502,6 +571,11 @@ button {
   align-items: center;
   gap: 12px;
   margin-bottom: 8px;
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  z-index: 1;
+  padding-bottom: 8px;
 }
 
 .list {
@@ -514,26 +588,40 @@ button {
 
 .list li {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "name remove"
+    "qty qty";
   gap: 8px;
   align-items: center;
   padding: 8px 0;
   border-bottom: 1px solid var(--line);
 }
 
+.item-name {
+  overflow-wrap: anywhere;
+  grid-area: name;
+}
+
 .qty {
   display: flex;
   align-items: center;
   gap: 6px;
+  grid-area: qty;
+  justify-self: start;
 }
 
 .qty button,
 .remove {
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
   border: 0;
   border-radius: 8px;
   background: #efe3cf;
+}
+
+.remove {
+  grid-area: remove;
 }
 
 .close-btn {
@@ -545,7 +633,9 @@ button {
 .group header,
 .totals {
   display: flex;
+  flex-direction: column;
   justify-content: space-between;
+  align-items: stretch;
   gap: 12px;
 }
 
@@ -615,7 +705,13 @@ button {
 
 .split-actions {
   display: flex;
+  flex-direction: column;
   gap: 8px;
+}
+
+.split-actions button {
+  width: 100%;
+  min-height: 44px;
 }
 
 .skeleton-row,
@@ -637,13 +733,199 @@ button {
   }
 }
 
-@media (max-width: 900px) {
+.more {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.85rem 1.1rem;
+  background: #efe3cf;
+  font-weight: 700;
+}
+
+@media (min-width: 900px) and (hover: hover) and (pointer: fine) {
+  h1 {
+    font-size: clamp(2.2rem, 5vw, 3.4rem);
+  }
+
+  .page {
+    padding: 28px 20px 96px;
+  }
+
+  .top {
+    flex-direction: row;
+    align-items: end;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .top-actions {
+    justify-content: end;
+    width: auto;
+  }
+
+  .app-nav {
+    flex: initial;
+    width: auto;
+  }
+
+  .app-nav button {
+    flex: initial;
+    min-height: 0;
+  }
+
+  .top-actions .ghost {
+    width: auto;
+    min-height: 0;
+  }
+
+  .gate {
+    padding: 36px;
+    border-radius: 28px;
+    max-width: 640px;
+  }
+
+  .gate form,
+  .add-row {
+    flex-direction: row;
+  }
+
+  .gate form .primary,
+  .add-row button {
+    width: auto;
+    min-height: 0;
+  }
+
+  .chips {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  .deals-head {
+    align-items: end;
+  }
+
+  .tabs {
+    width: auto;
+  }
+
+  .tab {
+    flex: initial;
+    min-height: 0;
+    padding: 0.55rem 1rem;
+    font-size: inherit;
+  }
+
+  .filters {
+    flex-wrap: nowrap;
+  }
+
+  .filters input {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .check {
+    white-space: nowrap;
+  }
+
+  .flyer-grid,
+  .offer-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+  }
+
+  .location {
+    flex-direction: row;
+    align-items: center;
+    padding: 18px 20px;
+  }
+
+  .location label,
+  .location select {
+    width: auto;
+  }
+
+  .list-card.current {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .list-card.current .primary {
+    width: auto;
+    min-height: 0;
+  }
+
+  .store-row {
+    scroll-snap-type: x proximity;
+  }
+
+  .store-card {
+    flex: 1 0 200px;
+    max-width: 280px;
+  }
+
+  .offer img,
+  .flyer img,
+  .ph {
+    height: 120px;
+  }
+
+  .offer h3 {
+    font-size: 1rem;
+  }
+
+  .list-fab {
+    right: 20px;
+    bottom: 20px;
+    min-height: 0;
+  }
+
   .list-panel {
-    top: auto;
-    right: 0;
-    left: 0;
-    width: 100%;
-    height: min(78vh, 100%);
-    border-radius: 24px 24px 0 0;
+    top: 0;
+    left: auto;
+    width: min(400px, 100%);
+    height: 100%;
+    max-height: none;
+    padding: 22px;
+    border-radius: 24px 0 0 24px;
+  }
+
+  .list-panel-head {
+    position: static;
+    padding-bottom: 0;
+  }
+
+  .list li {
+    grid-template-columns: 1fr auto auto;
+    grid-template-areas: none;
+  }
+
+  .item-name,
+  .qty,
+  .remove {
+    grid-area: auto;
+  }
+
+  .qty button,
+  .remove {
+    width: 28px;
+    height: 28px;
+  }
+
+  .split-head,
+  .group header,
+  .totals {
+    flex-direction: row;
+  }
+
+  .split-actions {
+    flex-direction: row;
+  }
+
+  .split-actions button {
+    width: auto;
+    min-height: 0;
   }
 }
