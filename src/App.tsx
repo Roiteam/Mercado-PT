@@ -859,7 +859,7 @@ function DealsBoard({
                 target="_blank"
                 rel="noreferrer"
               >
-                {f.imageUrl ? <img src={f.imageUrl} alt="" /> : <div className="ph" />}
+                <FlyerCover src={f.imageUrl} title={f.title} />
                 <span className="chain" style={{ background: CHAIN_TONE[f.chain] }}>
                   {CHAIN_LABEL[f.chain]}
                 </span>
@@ -984,5 +984,18 @@ function SplitView({
         ser diferentes.
       </p>
     </section>
+  );
+}
+
+function FlyerCover({ src, title }: { src?: string; title: string }) {
+  const [failed, setFailed] = useState(!src);
+  if (!src || failed) return <div className="ph" aria-hidden="true" />;
+  return (
+    <img
+      src={src}
+      alt={title}
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+    />
   );
 }
