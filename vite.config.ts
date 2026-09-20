@@ -4,4 +4,9 @@ import netlify from "@netlify/vite-plugin";
 
 export default defineConfig({
   plugins: [react(), netlify()],
+  server: {
+    watch: {
+      ignored: ["**/.probe/**", "**/.netlify/**"],
+    },
+  },
 });

@@ -88,6 +88,15 @@ export function json(data: unknown, status = 200) {
   });
 }
 
+export function jsonPrivate(data: unknown, status = 200) {
+  return Response.json(data, {
+    status,
+    headers: {
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
 export function errorJson(message: string, status = 400) {
   return Response.json({ error: message }, { status });
 }

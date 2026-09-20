@@ -26,10 +26,10 @@ export default async (req: Request) => {
   try {
     body = (await req.json()) as Body;
   } catch {
-    return errorJson("JSON non valido.");
+    return errorJson("JSON inválido.");
   }
   const postalCode = parsePostalCode(body.postalCode ?? "");
-  if (!postalCode) return errorJson("CAP mancante.");
+  if (!postalCode) return errorJson("Código postal em falta.");
   const items = (body.items ?? [])
     .map((it) => ({
       id: it.id ?? crypto.randomUUID(),
@@ -38,7 +38,7 @@ export default async (req: Request) => {
     }))
     .filter((it) => it.query.length >= 2)
     .slice(0, 20);
-  if (!items.length) return errorJson("Aggiungi almeno un prodotto alla lista.");
+  if (!items.length) return errorJson("Adiciona pelo menos um produto à lista.");
   const radiusKm = Math.min(20, Math.max(2, Number(body.radiusKm) || 6));
 
   try {
@@ -72,7 +72,7 @@ export default async (req: Request) => {
         unmatched.push({
           query: row.item.query,
           qty: row.item.qty,
-          reason: "Nessun prodotto abbastanza simile nei cataloghi vicini.",
+          reason: "Nenhum produto suficientemente parecido nos catálogos próximos.",
         });
         continue;
       }
@@ -121,7 +121,7 @@ export default async (req: Request) => {
     };
     return json(payload);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Ottimizzazione non riuscita.";
+    const message = err instanceof Error ? err.message : "Não foi possível comparar os preços.";
     return errorJson(message, 502);
   }
 };

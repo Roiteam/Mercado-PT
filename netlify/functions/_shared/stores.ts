@@ -41,7 +41,7 @@ type NominatimHit = {
 
 export async function geocodePostal(postalCode: string): Promise<Place> {
   const cp = parsePostalCode(postalCode);
-  if (!cp) throw new Error("CAP portoghese non valido. Usa il formato 1000-001.");
+  if (!cp) throw new Error("Código postal português inválido. Usa o formato 1000-001.");
 
   return cached(`geo:${cp}`, 24 * 60 * 60 * 1000, async () => {
     try {
@@ -64,7 +64,7 @@ export async function geocodePostal(postalCode: string): Promise<Place> {
         )}&format=json&limit=1`,
         { headers: { "User-Agent": "PoupaJa/0.1 (grocery comparison)" } },
       );
-      if (!hits[0]) throw new Error(`CAP ${cp} non trovato.`);
+      if (!hits[0]) throw new Error(`Código postal ${cp} não encontrado.`);
       return {
         lat: Number(hits[0].lat),
         lon: Number(hits[0].lon),

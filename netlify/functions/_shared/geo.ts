@@ -9,7 +9,7 @@ export const CHAIN_LABEL: Record<ChainId, string> = {
   minipreco: "Minipreço",
   intermarche: "Intermarché",
   mercadona: "Mercadona",
-  other: "Altro",
+  other: "Outro",
 };
 
 export const PRICED_CHAINS: ChainId[] = ["continente", "pingo_doce"];

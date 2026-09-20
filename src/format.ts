@@ -7,7 +7,7 @@ export const CHAIN_LABEL: Record<string, string> = {
   minipreco: "Minipreço",
   intermarche: "Intermarché",
   mercadona: "Mercadona",
-  other: "Altro",
+  other: "Outro",
 };
 
 export const CHAIN_TONE: Record<string, string> = {
@@ -21,6 +21,14 @@ export const CHAIN_TONE: Record<string, string> = {
   mercadona: "#588157",
   other: "#6d4c41",
 };
+
+export function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("pt-PT", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
 
 export function storeMapsLink(store: { lat: number; lon: number }) {
   return `https://www.google.com/maps/search/?api=1&query=${store.lat},${store.lon}`;
@@ -40,6 +48,16 @@ export function uid() {
 const POSTAL_KEY = "poupaja.postal";
 const LIST_KEY = "poupaja.list";
 const RADIUS_KEY = "poupaja.radius";
+const HOUSEHOLD_KEY = "poupaja.household";
+
+export function loadHouseholdId() {
+  let id = localStorage.getItem(HOUSEHOLD_KEY);
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem(HOUSEHOLD_KEY, id);
+  }
+  return id;
+}
 
 export function loadPostal() {
   return localStorage.getItem(POSTAL_KEY) ?? "";

@@ -9,7 +9,7 @@ export default async (req: Request) => {
   if (req.method !== "GET") return errorJson("Method not allowed", 405);
   const url = new URL(req.url);
   const q = (url.searchParams.get("q") ?? "").trim();
-  if (q.length < 2) return errorJson("Cerca almeno 2 caratteri.");
+  if (q.length < 2) return errorJson("Pesquisa com pelo menos 2 caracteres.");
   const chains = (url.searchParams.get("chains") ?? "continente,pingo_doce")
     .split(",")
     .map((c) => c.trim()) as ChainId[];
@@ -25,7 +25,7 @@ export default async (req: Request) => {
       .slice(0, 16);
     return json({ query, products });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Ricerca non riuscita.";
+    const message = err instanceof Error ? err.message : "Pesquisa falhou.";
     return errorJson(message, 502);
   }
 };

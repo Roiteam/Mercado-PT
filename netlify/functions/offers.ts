@@ -11,7 +11,7 @@ export default async (req: Request) => {
   if (req.method !== "GET") return errorJson("Method not allowed", 405);
   const url = new URL(req.url);
   const postalCode = parsePostalCode(url.searchParams.get("postalCode") ?? "");
-  if (!postalCode) return errorJson("CAP mancante.");
+  if (!postalCode) return errorJson("Código postal em falta.");
   const radiusKm = Math.min(
     20,
     Math.max(2, Number(url.searchParams.get("radiusKm") ?? 6) || 6),
@@ -46,7 +46,7 @@ export default async (req: Request) => {
     const flyers = rawFlyers.filter((f) => isFlyerForPlace(place, f));
     return json({ place, offers, flyers });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Errore nel caricamento delle offerte.";
+    const message = err instanceof Error ? err.message : "Erro ao carregar as ofertas.";
     return errorJson(message, 502);
   }
 };

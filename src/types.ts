@@ -101,3 +101,16 @@ export type Flyer = {
   imageUrl?: string;
   url: string;
 };
+
+export type ShoppingList = {
+  id: string;
+  householdId: string;
+  title: string;
+  status: "open" | "done";
+  postalCode?: string;
+  items: ListItem[];
+  split?: OptimizeResponse | null;
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string | null;
+};

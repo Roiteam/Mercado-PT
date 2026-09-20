@@ -67,6 +67,35 @@ button {
   margin-bottom: 28px;
 }
 
+.top-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: end;
+}
+
+.app-nav {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  background: #efe3cf;
+  border-radius: 999px;
+}
+
+.app-nav button {
+  border: 0;
+  background: transparent;
+  border-radius: 999px;
+  padding: 0.55rem 1rem;
+  font-weight: 700;
+}
+
+.app-nav button.on {
+  background: var(--leaf);
+  color: #fff;
+}
+
 .kicker {
   margin: 0 0 4px;
   text-transform: uppercase;
@@ -110,7 +139,8 @@ button {
 .flyer,
 .group,
 .totals,
-.unmatched {
+.unmatched,
+.list-card {
   background: var(--card);
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
@@ -131,12 +161,18 @@ button {
 
 .gate input,
 .add-row input,
-.location select {
+.location select,
+.list-title {
   flex: 1;
   border: 1px solid var(--line);
   background: #fff;
   border-radius: 999px;
   padding: 0.85rem 1rem;
+}
+
+.list-title {
+  width: 100%;
+  margin: 8px 0 12px;
 }
 
 .chips {
@@ -259,14 +295,41 @@ button {
   font-size: 0.92rem;
 }
 
-.more {
-  display: block;
-  margin: 18px auto 8px;
-  border: 1px solid var(--line);
-  background: #efe3cf;
-  border-radius: 999px;
-  padding: 0.7rem 1.2rem;
-  font-weight: 700;
+.archive-title {
+  margin: 28px 0 12px;
+  font-size: 1.2rem;
+}
+
+.archive-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.list-card {
+  padding: 16px 18px;
+  border-radius: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.list-card.current {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.list-card-main {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+.list-card-body .list li {
+  grid-template-columns: 1fr auto;
 }
 
 .banner {

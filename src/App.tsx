@@ -1,16 +1,26 @@
-import { useEffect, useMemo, useState } from "react";
-import { getOffers, getStores, optimizeList } from "./api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  createRemoteList,
+  deleteRemoteList,
+  fetchLists,
+  getOffers,
+  getStores,
+  optimizeList,
+  patchRemoteList,
+} from "./api";
 import {
   CHAIN_LABEL,
   CHAIN_TONE,
   euro,
-  storeMapsLink,
+  formatDate,
+  loadHouseholdId,
   loadList,
   loadPostal,
   loadRadius,
   saveList,
   savePostal,
   saveRadius,
+  storeMapsLink,
   uid,
 } from "./format";
 import type {
@@ -19,6 +29,7 @@ import type {
   ListItem,
   OffersResponse,
   OptimizeResponse,
+  ShoppingList,
   Store,
   StoresResponse,
 } from "./types";
@@ -30,18 +41,26 @@ const DEMO = [
 ];
 
 export default function App() {
+  const householdId = useMemo(() => loadHouseholdId(), []);
   const [postal, setPostal] = useState("");
   const [draftCap, setDraftCap] = useState("");
   const [radiusKm, setRadiusKm] = useState(6);
   const [storesData, setStoresData] = useState<StoresResponse | null>(null);
   const [offers, setOffers] = useState<OffersResponse | null>(null);
   const [list, setList] = useState<ListItem[]>([]);
+  const [listTitle, setListTitle] = useState("Lista de compras");
+  const [remoteListId, setRemoteListId] = useState("");
+  const [archives, setArchives] = useState<ShoppingList[]>([]);
+  const [view, setView] = useState<"ofertas" | "listas">("ofertas");
   const [draftItem, setDraftItem] = useState("");
   const [loading, setLoading] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
   const [error, setError] = useState("");
   const [split, setSplit] = useState<OptimizeResponse | null>(null);
   const [listOpen, setListOpen] = useState(false);
+  const [syncNote, setSyncNote] = useState("");
+  const hydrated = useRef(false);
+  const saveTimer = useRef<number>(0);
 
   useEffect(() => {
     const saved = loadPostal();
@@ -49,6 +68,7 @@ export default function App() {
     const savedRadius = loadRadius();
     setList(savedList);
     setRadiusKm(savedRadius);
+    void hydrateLists(savedList, saved);
     if (saved) {
       setPostal(saved);
       setDraftCap(saved);
@@ -58,7 +78,17 @@ export default function App() {
 
   useEffect(() => {
     saveList(list);
-  }, [list]);
+    if (!hydrated.current || !remoteListId) return;
+    window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => {
+      void patchRemoteList(householdId, remoteListId, {
+        items: list,
+        title: listTitle,
+        postalCode: postal || undefined,
+      }).catch(() => setSyncNote("A lista fica neste telemóvel até o Supabase responder."));
+    }, 500);
+    return () => window.clearTimeout(saveTimer.current);
+  }, [list, listTitle, postal, remoteListId, householdId]);
 
   useEffect(() => {
     if (!listOpen) return;
@@ -68,6 +98,32 @@ export default function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [listOpen]);
+
+  async function hydrateLists(localItems: ListItem[], cap: string) {
+    try {
+      const { lists } = await fetchLists(householdId);
+      const open = lists.find((l) => l.status === "open");
+      setArchives(lists.filter((l) => l.status === "done"));
+      if (open) {
+        setRemoteListId(open.id);
+        setListTitle(open.title);
+        setList(open.items.length ? open.items : localItems);
+      } else {
+        const created = await createRemoteList(householdId, {
+          postalCode: cap || undefined,
+          items: localItems,
+        });
+        setRemoteListId(created.list.id);
+        setListTitle(created.list.title);
+        setList(created.list.items);
+      }
+      setSyncNote("");
+    } catch {
+      setSyncNote("A lista fica gravada neste telemóvel. O histórico aparece quando o Supabase ligar.");
+    } finally {
+      hydrated.current = true;
+    }
+  }
 
   async function boot(cap: string, radius: number) {
     setLoading(true);
@@ -81,7 +137,7 @@ export default function App() {
       setStoresData(stores);
       setOffers(nextOffers);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Qualcosa è andato storto.");
+      setError(err instanceof Error ? err.message : "Algo correu mal.");
       setStoresData(null);
     } finally {
       setLoading(false);
@@ -119,7 +175,7 @@ export default function App() {
     setSplit(null);
   }
 
-  async function closeList() {
+  async function comparePrices() {
     if (!postal || !list.length) return;
     setOptimizing(true);
     setError("");
@@ -127,37 +183,110 @@ export default function App() {
       const result = await optimizeList(postal, radiusKm, list);
       setSplit(result);
       setListOpen(false);
+      setView("ofertas");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Confronto non riuscito.");
+      setError(err instanceof Error ? err.message : "Não foi possível comparar os preços.");
     } finally {
       setOptimizing(false);
     }
   }
 
+  async function finishShopping(withSplit?: OptimizeResponse | null) {
+    if (!remoteListId) {
+      setList([]);
+      setSplit(null);
+      return;
+    }
+    try {
+      const done = await patchRemoteList(householdId, remoteListId, {
+        items: list,
+        title: listTitle,
+        postalCode: postal || undefined,
+        status: "done",
+        split: withSplit ?? split,
+      });
+      setArchives((prev) => [done.list, ...prev.filter((l) => l.id !== done.list.id)]);
+      const created = await createRemoteList(householdId, { postalCode: postal || undefined });
+      setRemoteListId(created.list.id);
+      setListTitle(created.list.title);
+      setList([]);
+      setSplit(null);
+      setListOpen(false);
+      setView("listas");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível guardar a lista.");
+    }
+  }
+
+  async function removeArchive(id: string) {
+    try {
+      await deleteRemoteList(householdId, id);
+    } catch {
+      /* still drop locally */
+    }
+    setArchives((prev) => prev.filter((l) => l.id !== id));
+  }
+
+  function reuseArchive(done: ShoppingList) {
+    setList((prev) => {
+      const next = [...prev];
+      for (const item of done.items) {
+        const existing = next.find(
+          (it) => it.query.toLowerCase() === item.query.toLowerCase(),
+        );
+        if (existing) existing.qty += item.qty;
+        else next.push({ id: uid(), query: item.query, qty: item.qty });
+      }
+      return next;
+    });
+    setListOpen(true);
+    setView("ofertas");
+  }
+
   const pricedNearby = storesData?.pricedChains ?? [];
   const storeCount = storesData?.stores.length ?? 0;
+  const qty = list.reduce((n, it) => n + it.qty, 0);
 
   return (
     <div className="page">
       <header className="top">
         <div>
-          <p className="kicker">Portogallo · prezzi veri dai cataloghi</p>
-          <h1>PoupaJá</h1>
+          <p className="kicker">Portugal · preços reais dos catálogos</p>
+          <h1>Mercado.pt</h1>
         </div>
         {postal ? (
-          <button
-            className="ghost"
-            onClick={() => {
-              setPostal("");
-              savePostal("");
-              setStoresData(null);
-              setOffers(null);
-              setSplit(null);
-              setListOpen(false);
-            }}
-          >
-            Cambia CAP
-          </button>
+          <div className="top-actions">
+            <nav className="app-nav">
+              <button
+                type="button"
+                className={view === "ofertas" ? "on" : ""}
+                onClick={() => setView("ofertas")}
+              >
+                Ofertas
+              </button>
+              <button
+                type="button"
+                className={view === "listas" ? "on" : ""}
+                onClick={() => setView("listas")}
+              >
+                Listas
+              </button>
+            </nav>
+            <button
+              className="ghost"
+              onClick={() => {
+                setPostal("");
+                savePostal("");
+                setStoresData(null);
+                setOffers(null);
+                setSplit(null);
+                setListOpen(false);
+                setView("ofertas");
+              }}
+            >
+              Mudar código postal
+            </button>
+          </div>
         ) : null}
       </header>
 
@@ -180,15 +309,22 @@ export default function App() {
               storeCount={storeCount}
             />
             {error ? <p className="banner">{error}</p> : null}
+            {syncNote ? <p className="hint">{syncNote}</p> : null}
 
-            {split ? (
+            {view === "listas" ? (
+              <ListsBoard
+                currentTitle={listTitle}
+                currentCount={qty}
+                onOpenCurrent={() => setListOpen(true)}
+                archives={archives}
+                onReuse={reuseArchive}
+                onDelete={removeArchive}
+              />
+            ) : split ? (
               <SplitView
                 split={split}
                 onBack={() => setSplit(null)}
-                onReset={() => {
-                  setList([]);
-                  setSplit(null);
-                }}
+                onFinish={() => void finishShopping(split)}
               />
             ) : (
               <>
@@ -215,8 +351,8 @@ export default function App() {
             hidden={listOpen}
             aria-expanded={listOpen}
           >
-            Lista della spesa
-            <span className="list-fab-count">{list.reduce((n, it) => n + it.qty, 0)}</span>
+            Lista de compras
+            <span className="list-fab-count">{qty}</span>
           </button>
 
           {listOpen ? (
@@ -224,26 +360,31 @@ export default function App() {
               <button
                 type="button"
                 className="list-backdrop"
-                aria-label="Chiudi lista"
+                aria-label="Fechar lista"
                 onClick={() => setListOpen(false)}
               />
-              <aside className="list-panel" role="dialog" aria-label="Lista della spesa">
+              <aside className="list-panel" role="dialog" aria-label="Lista de compras">
                 <div className="list-panel-head">
-                  <h2>Lista della spesa</h2>
+                  <h2>Lista de compras</h2>
                   <button
                     type="button"
                     className="ghost"
                     onClick={() => setListOpen(false)}
                   >
-                    Chiudi
+                    Fechar
                   </button>
                 </div>
+                <input
+                  className="list-title"
+                  value={listTitle}
+                  onChange={(e) => setListTitle(e.target.value)}
+                  placeholder="Nome da lista"
+                />
                 <p className="hint">
-                  Aggiungi i prodotti in italiano o portoghese. Quando chiudi la
-                  lista, PoupaJá la spezza sui supermercati più convenienti vicino a
-                  te
+                  Podes ir acrescentando produtos ao longo dos dias. Quando fores às
+                  compras, comparamos os preços nos supermercados perto de ti
                   {pricedNearby.length
-                    ? ` (prezzi live: ${pricedNearby
+                    ? ` (preços online: ${pricedNearby
                         .map((c) => (c === "pingo_doce" ? "Pingo Doce" : "Continente"))
                         .join(" e ")}).`
                     : "."}
@@ -259,9 +400,9 @@ export default function App() {
                     autoFocus
                     value={draftItem}
                     onChange={(e) => setDraftItem(e.target.value)}
-                    placeholder="es. latte, pão, azeite..."
+                    placeholder="ex. leite, pão, azeite..."
                   />
-                  <button type="submit">Aggiungi</button>
+                  <button type="submit">Adicionar</button>
                 </form>
                 <ul className="list">
                   {list.map((item) => (
@@ -309,14 +450,21 @@ export default function App() {
                   ))}
                 </ul>
                 {!list.length ? (
-                  <p className="empty">La lista è vuota. Aggiungi il primo prodotto.</p>
+                  <p className="empty">A lista está vazia. Adiciona o primeiro produto.</p>
                 ) : null}
                 <button
                   className="primary close-btn"
                   disabled={!list.length || optimizing}
-                  onClick={() => void closeList()}
+                  onClick={() => void comparePrices()}
                 >
-                  {optimizing ? "Confronto i prezzi…" : "Chiudi lista e spezza per negozio"}
+                  {optimizing ? "A comparar preços…" : "Comparar preços por loja"}
+                </button>
+                <button
+                  className="ghost close-btn"
+                  disabled={!list.length}
+                  onClick={() => void finishShopping()}
+                >
+                  Concluir compras e guardar
                 </button>
               </aside>
             </div>
@@ -342,10 +490,10 @@ function PostalGate({
 }) {
   return (
     <section className="gate">
-      <h2>Dove fai la spesa?</h2>
+      <h2>Onde fazes as compras?</h2>
       <p>
-        Inserisci il codice postale portoghese. Ti mostro i supermercati nel raggio
-        e le offerte, poi spezzo la tua lista dove costa meno.
+        Introduz o código postal português. Mostramos os supermercados no raio e as
+        ofertas, depois partimos a lista onde fica mais barato.
       </p>
       <form
         onSubmit={(e) => {
@@ -361,7 +509,7 @@ function PostalGate({
           onChange={(e) => setDraft(e.target.value)}
         />
         <button className="primary" type="submit" disabled={loading}>
-          {loading ? "Cerco i negozi…" : "Vedi supermercati"}
+          {loading ? "A procurar lojas…" : "Ver supermercados"}
         </button>
       </form>
       {error ? <p className="banner">{error}</p> : null}
@@ -395,11 +543,11 @@ function LocationBar({
         <p className="kicker">Zona</p>
         <strong>{placeLabel}</strong>
         <p className="hint">
-          {loading ? "Aggiorno i negozi…" : `${storeCount} supermercati nel raggio`}
+          {loading ? "A atualizar as lojas…" : `${storeCount} supermercados no raio`}
         </p>
       </div>
       <label>
-        Raggio
+        Raio
         <select
           value={radiusKm}
           onChange={(e) => onRadius(Number(e.target.value))}
@@ -414,13 +562,107 @@ function LocationBar({
   );
 }
 
+function ListsBoard({
+  currentTitle,
+  currentCount,
+  onOpenCurrent,
+  archives,
+  onReuse,
+  onDelete,
+}: {
+  currentTitle: string;
+  currentCount: number;
+  onOpenCurrent: () => void;
+  archives: ShoppingList[];
+  onReuse: (list: ShoppingList) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [openId, setOpenId] = useState("");
+  return (
+    <section>
+      <h2>Listas de compras</h2>
+      <p className="hint">
+        A lista atual guarda-se sozinha. Quando concluis as compras, passa para o
+        histórico.
+      </p>
+      <article className="list-card current">
+        <div>
+          <p className="kicker">Em curso</p>
+          <h3>{currentTitle}</h3>
+          <p className="hint">
+            {currentCount
+              ? `${currentCount} artigo${currentCount === 1 ? "" : "s"} · podes ir acrescentando`
+              : "Ainda vazia · adiciona produtos ao longo dos dias"}
+          </p>
+        </div>
+        <button type="button" className="primary" onClick={onOpenCurrent}>
+          Abrir lista
+        </button>
+      </article>
+      <h3 className="archive-title">Compras feitas</h3>
+      {!archives.length ? (
+        <p className="empty">Ainda não há compras guardadas.</p>
+      ) : (
+        <div className="archive-grid">
+          {archives.map((done) => {
+            const count = done.items.reduce((n, it) => n + it.qty, 0);
+            const expanded = openId === done.id;
+            return (
+              <article key={done.id} className="list-card">
+                <button
+                  type="button"
+                  className="list-card-main"
+                  onClick={() => setOpenId(expanded ? "" : done.id)}
+                >
+                  <h3>{done.title}</h3>
+                  <p className="hint">
+                    {formatDate(done.completedAt || done.updatedAt)} · {count} artigo
+                    {count === 1 ? "" : "s"}
+                    {done.split?.totals.split
+                      ? ` · ${euro(done.split.totals.split)}`
+                      : ""}
+                  </p>
+                </button>
+                {expanded ? (
+                  <div className="list-card-body">
+                    <ul className="list">
+                      {done.items.map((it) => (
+                        <li key={it.id}>
+                          <span>{it.query}</span>
+                          <strong>{it.qty}×</strong>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="split-actions">
+                      <button type="button" className="ghost" onClick={() => onReuse(done)}>
+                        Voltar a usar
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost"
+                        onClick={() => onDelete(done.id)}
+                      >
+                        Apagar
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function StoreStrip({ stores, loading }: { stores: Store[]; loading: boolean }) {
   if (loading && !stores.length) {
     return <div className="skeleton-row" />;
   }
   return (
     <section>
-      <h2>Supermercati vicino a te</h2>
+      <h2>Supermercados perto de ti</h2>
       <div className="store-row">
         {stores.slice(0, 12).map((store) => (
           <a
@@ -487,21 +729,21 @@ function DealsBoard({
   return (
     <section>
       <div className="deals-head">
-        <h2>Offerte e volantini</h2>
+        <h2>Ofertas e folhetos</h2>
         <div className="tabs">
           <button
             type="button"
             className={tab === "offers" ? "tab on" : "tab"}
             onClick={() => setTab("offers")}
           >
-            Prodotti ({filteredOffers.length})
+            Produtos ({filteredOffers.length})
           </button>
           <button
             type="button"
             className={tab === "flyers" ? "tab on" : "tab"}
             onClick={() => setTab("flyers")}
           >
-            Volantini ({filteredFlyers.length})
+            Folhetos ({filteredFlyers.length})
           </button>
         </div>
       </div>
@@ -509,7 +751,7 @@ function DealsBoard({
       <div className="filters">
         <input
           value={q}
-          placeholder="Filtra per nome…"
+          placeholder="Filtrar por nome…"
           onChange={(e) => {
             setQ(e.target.value);
             setVisible(48);
@@ -525,7 +767,7 @@ function DealsBoard({
                 setVisible(48);
               }}
             />
-            Solo scontati
+            Só com desconto
           </label>
         ) : null}
       </div>
@@ -539,7 +781,7 @@ function DealsBoard({
             setVisible(48);
           }}
         >
-          Tutti
+          Todos
         </button>
         {nearbyChains.map((id) => (
           <button
@@ -563,8 +805,8 @@ function DealsBoard({
           {!loading && !filteredOffers.length ? (
             <p className="hint">
               {chain !== "all" && chain !== "continente" && chain !== "pingo_doce"
-                ? `I prezzi prodotto di ${CHAIN_LABEL[chain]} arrivano dal volantino. Apri la scheda Volantini.`
-                : "Nessuna offerta con questi filtri."}
+                ? `Os preços de ${CHAIN_LABEL[chain]} estão no folheto. Abre o separador Folhetos.`
+                : "Nenhuma oferta com estes filtros."}
             </p>
           ) : null}
           <div className="offer-grid">
@@ -581,7 +823,7 @@ function DealsBoard({
                   {p.originalPrice ? <s>{euro(p.originalPrice)}</s> : null}
                 </p>
                 <button type="button" onClick={() => onAdd(p.name)}>
-                  Aggiungi alla lista
+                  Adicionar à lista
                 </button>
               </article>
             ))}
@@ -592,13 +834,13 @@ function DealsBoard({
               className="more"
               onClick={() => setVisible((n) => n + 48)}
             >
-              Mostra altri ({filteredOffers.length - shownOffers.length} rimanenti)
+              Mostrar mais ({filteredOffers.length - shownOffers.length} restantes)
             </button>
           ) : null}
           {!loading && filteredOffers.length ? (
             <p className="hint">
-              Prezzi dai cataloghi online di Continente e Pingo Doce. Lidl, Aldi,
-              Auchan e Intermarché si sfogliano dai volantini.
+              Preços dos catálogos online Continente e Pingo Doce. Lidl, Aldi, Auchan
+              e Intermarché consultam-se nos folhetos.
             </p>
           ) : null}
         </>
@@ -606,7 +848,7 @@ function DealsBoard({
         <>
           {loading && !flyers.length ? <div className="skeleton-grid" /> : null}
           {!loading && !filteredFlyers.length ? (
-            <p className="hint">Nessun volantino per questi filtri.</p>
+            <p className="hint">Nenhum folheto com estes filtros.</p>
           ) : null}
           <div className="flyer-grid">
             {filteredFlyers.map((f) => (
@@ -623,7 +865,7 @@ function DealsBoard({
                 </span>
                 <h3>{f.title}</h3>
                 {f.period ? <p className="brand">{f.period}</p> : null}
-                <em>Sfoglia volantino</em>
+                <em>Ver folheto</em>
               </a>
             ))}
           </div>
@@ -636,51 +878,51 @@ function DealsBoard({
 function SplitView({
   split,
   onBack,
-  onReset,
+  onFinish,
 }: {
   split: OptimizeResponse;
   onBack: () => void;
-  onReset: () => void;
+  onFinish: () => void;
 }) {
   const storeCount = split.groups.length;
   const headline = useMemo(() => {
-    if (!storeCount) return "Nessun match sui cataloghi vicini.";
-    return `Fai la spesa in ${storeCount} supermercat${storeCount === 1 ? "o" : "i"}`;
+    if (!storeCount) return "Sem correspondência nos catálogos próximos.";
+    return `Faz as compras em ${storeCount} supermercado${storeCount === 1 ? "" : "s"}`;
   }, [storeCount]);
 
   return (
     <section className="split">
       <div className="split-head">
         <div>
-          <p className="kicker">Lista chiusa</p>
+          <p className="kicker">Lista comparada</p>
           <h2>{headline}</h2>
         </div>
         <div className="split-actions">
           <button className="ghost" onClick={onBack}>
-            Modifica lista
+            Continuar a adicionar
           </button>
-          <button className="ghost" onClick={onReset}>
-            Nuova lista
+          <button className="primary" onClick={onFinish}>
+            Concluir e guardar
           </button>
         </div>
       </div>
       <div className="totals">
         <div>
-          <p>Totale spezzato</p>
+          <p>Total dividido</p>
           <strong>{euro(split.totals.split)}</strong>
         </div>
         {split.totals.oneStore ? (
           <div>
-            <p>Tutto da {split.totals.oneStore.chainLabel}</p>
+            <p>Tudo no {split.totals.oneStore.chainLabel}</p>
             <strong>{euro(split.totals.oneStore.total)}</strong>
             {split.totals.oneStore.missing ? (
-              <em>mancano {split.totals.oneStore.missing} prodotti</em>
+              <em>faltam {split.totals.oneStore.missing} produtos</em>
             ) : null}
           </div>
         ) : null}
         {split.totals.savings > 0 ? (
           <div className="save">
-            <p>Risparmio stimato</p>
+            <p>Poupança estimada</p>
             <strong>{euro(split.totals.savings)}</strong>
           </div>
         ) : null}
@@ -691,7 +933,7 @@ function SplitView({
             <header>
               <span className="dot" style={{ background: CHAIN_TONE[g.chain] }} />
               <div>
-                <h3>Questi li prendi da {g.chainLabel}</h3>
+                <h3>Leva estes no {g.chainLabel}</h3>
                 <a href={storeMapsLink(g.store)} target="_blank" rel="noreferrer">
                   {g.store.name} · {g.store.distanceKm.toFixed(1)} km ·{" "}
                   {g.store.address}
@@ -713,7 +955,7 @@ function SplitView({
                     </p>
                     <span>
                       {it.product?.brand ? `${it.product.brand} · ` : ""}
-                      cercavi “{it.query}”
+                      procuravas “{it.query}”
                     </span>
                   </div>
                   <b>{euro(it.lineTotal)}</b>
@@ -725,7 +967,7 @@ function SplitView({
       </div>
       {split.unmatched.length ? (
         <div className="unmatched">
-          <h3>Non trovati con certezza</h3>
+          <h3>Não encontrados com certeza</h3>
           <ul>
             {split.unmatched.map((u) => (
               <li key={u.query}>
@@ -737,9 +979,9 @@ function SplitView({
         </div>
       ) : null}
       <p className="disclaimer">
-        Prezzi prodotto dai cataloghi online di Continente e Pingo Doce; Lidl,
-        Aldi, Auchan e Intermarché si consultano dai volantini. In negozio i
-        prezzi possono differire.
+        Preços de produto dos catálogos online Continente e Pingo Doce; Lidl, Aldi,
+        Auchan e Intermarché consultam-se nos folhetos. Em loja os preços podem
+        ser diferentes.
       </p>
     </section>
   );
