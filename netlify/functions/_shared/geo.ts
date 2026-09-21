@@ -17,6 +17,8 @@ export const PRICED_CHAINS: ChainId[] = [
   "pingo_doce",
   "auchan",
   "lidl",
+  "aldi",
+  "mercadona",
 ];
 
 const RULES: { chain: ChainId; test: RegExp }[] = [

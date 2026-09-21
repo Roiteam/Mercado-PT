@@ -10,6 +10,15 @@ export const CHAIN_LABEL: Record<string, string> = {
   other: "Outro",
 };
 
+export const PRICED_CHAINS = [
+  "continente",
+  "pingo_doce",
+  "auchan",
+  "lidl",
+  "aldi",
+  "mercadona",
+] as const;
+
 export const CHAIN_TONE: Record<string, string> = {
   continente: "#d62828",
   pingo_doce: "#2d6a4f",

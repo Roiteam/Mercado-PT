@@ -63,18 +63,23 @@ export async function cached<T>(
     const rec = (await store.get(blobKey(key), { type: "json" })) as
       | { exp: number; value: T }
       | null;
-    if (rec && rec.exp > now) {
+    if (rec && rec.exp > now && !(Array.isArray(rec.value) && rec.value.length === 0)) {
       mem.set(key, rec);
       return rec.value;
     }
     const value = await fn();
     const next = { exp: now + ttlMs, value };
-    mem.set(key, next);
-    await store.setJSON(blobKey(key), next).catch(() => undefined);
+    const cacheable = !(Array.isArray(value) && value.length === 0);
+    if (cacheable) {
+      mem.set(key, next);
+      await store.setJSON(blobKey(key), next).catch(() => undefined);
+    }
     return value;
   } catch {
     const value = await fn();
-    mem.set(key, { exp: now + ttlMs, value });
+    if (!(Array.isArray(value) && value.length === 0)) {
+      mem.set(key, { exp: now + ttlMs, value });
+    }
     return value;
   }
 }

@@ -244,6 +244,11 @@ button {
   flex-wrap: wrap;
 }
 
+.refresh-note {
+  margin: 0;
+  max-width: 36rem;
+}
+
 .tabs {
   display: flex;
   gap: 8px;

@@ -387,7 +387,7 @@ export default function App() {
                   {pricedNearby.length
                     ? ` (preços online: ${joinPt(
                         pricedNearby.map((c) => CHAIN_LABEL[c]),
-                      )}). Aldi e Intermarché só nos folhetos.`
+                      )}). Sem catálogo público, os preços ficam no folheto.`
                     : "."}
                 </p>
                 <form
@@ -707,6 +707,7 @@ function DealsBoard({
   const [visible, setVisible] = useState(48);
 
   const nearbyChains = chains.filter((c) => c !== "other");
+  const productChains = new Set(offers.map((p) => p.chain));
   const query = q.trim().toLowerCase();
 
   const filteredOffers = offers.filter((p) => {
@@ -730,7 +731,12 @@ function DealsBoard({
   return (
     <section>
       <div className="deals-head">
-        <h2>Ofertas e folhetos</h2>
+        <div>
+          <h2>Ofertas e folhetos</h2>
+          <p className="hint refresh-note">
+            Os produtos atualizam a cada 45 minutos. Os folhetos, a cada 6 horas.
+          </p>
+        </div>
         <div className="tabs">
           <button
             type="button"
@@ -792,7 +798,7 @@ function DealsBoard({
             onClick={() => {
               setChain(id);
               setVisible(48);
-              if (id !== "continente" && id !== "pingo_doce") setTab("flyers");
+              setTab(productChains.has(id) ? "offers" : "flyers");
             }}
           >
             {CHAIN_LABEL[id]}
@@ -805,7 +811,7 @@ function DealsBoard({
           {loading && !offers.length ? <div className="skeleton-grid" /> : null}
           {!loading && !filteredOffers.length ? (
             <p className="hint">
-              {chain !== "all" && chain !== "continente" && chain !== "pingo_doce"
+              {chain !== "all" && !productChains.has(chain)
                 ? `Os preços de ${CHAIN_LABEL[chain]} estão no folheto. Abre o separador Folhetos.`
                 : "Nenhuma oferta com estes filtros."}
             </p>
@@ -840,8 +846,11 @@ function DealsBoard({
           ) : null}
           {!loading && filteredOffers.length ? (
             <p className="hint">
-              Preços dos catálogos online Continente, Pingo Doce, Auchan e Lidl.
-              Aldi e Intermarché consultam-se nos folhetos.
+              {productChains.size
+                ? `Preços dos catálogos online de ${joinPt(
+                    [...productChains].map((id) => CHAIN_LABEL[id]),
+                  )}. Sem catálogo público, consulta o folheto.`
+                : "Sem catálogo público para estas cadeias: consulta o folheto."}
             </p>
           ) : null}
         </>
@@ -981,11 +990,11 @@ function SplitView({
       ) : null}
       <p className="disclaimer">
         {split.pricedChains?.length
-          ? `Comparamos preços online de ${joinPt(
+          ? `Comparamos preços online das cadeias próximas com catálogo: ${joinPt(
               split.pricedChains.map((c) => CHAIN_LABEL[c]),
             )}. `
-          : "Comparamos preços online de Continente, Pingo Doce, Auchan e Lidl. "}
-        Aldi e Intermarché só nos folhetos. Em loja os preços podem ser diferentes.
+          : "Comparamos os catálogos online das cadeias próximas. "}
+        Sem catálogo público, os preços ficam no folheto. Em loja os preços podem ser diferentes.
       </p>
     </section>
   );

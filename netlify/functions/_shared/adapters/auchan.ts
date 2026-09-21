@@ -1,5 +1,5 @@
 import * as cheerio from "cheerio";
-import { cached, fetchText } from "../http.ts";
+import { cached, fetchText, mapPool } from "../http.ts";
 import { parseEuro, parseUnitPrice } from "../geo.ts";
 import type { Product } from "../types.ts";
 
@@ -14,6 +14,36 @@ export async function searchAuchan(query: string, size = 8): Promise<Product[]> 
     const html = await fetchText(url, {}, 15000);
     return parseAuchanTiles(html);
   });
+}
+
+export async function auchanHomeOffers(): Promise<Product[]> {
+  return cached("auchan:promo:v2", 45 * 60 * 1000, async () => {
+    const starts = [0, 48];
+    const pages = await mapPool(starts, 2, async (start) => {
+      try {
+        const url = `${SEARCH}?cgid=alimentacao&prefn1=promoInStores&prefv1=000&start=${start}&sz=48`;
+        const html = await fetchText(url, {}, 18000);
+        return parseAuchanTiles(html);
+      } catch {
+        return [] as Product[];
+      }
+    });
+    const home = await fetchText("https://www.auchan.pt/", {}, 15000)
+      .then(parseAuchanTiles)
+      .catch(() => [] as Product[]);
+    return uniqueProducts([...home, ...pages.flat()]);
+  });
+}
+
+function uniqueProducts(products: Product[]) {
+  const seen = new Set<string>();
+  const out: Product[] = [];
+  for (const p of products) {
+    if (seen.has(p.id)) continue;
+    seen.add(p.id);
+    out.push(p);
+  }
+  return out;
 }
 
 function parseAuchanTiles(html: string): Product[] {

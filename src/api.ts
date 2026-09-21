@@ -27,7 +27,7 @@ export function getStores(postalCode: string, radiusKm: number) {
 
 export function getOffers(postalCode: string, radiusKm: number) {
   return fetch(
-    `/api/offers?postalCode=${encodeURIComponent(postalCode)}&radiusKm=${radiusKm}&v=4`,
+    `/api/offers?postalCode=${encodeURIComponent(postalCode)}&radiusKm=${radiusKm}&v=6`,
   ).then((res) => readJson<OffersResponse>(res));
 }
 

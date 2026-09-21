@@ -1,9 +1,8 @@
 import type { Config } from "@netlify/functions";
-import { errorJson, json } from "./_shared/http.ts";
+import { errorJson, json, mapPool } from "./_shared/http.ts";
 import { parsePostalCode } from "./_shared/geo.ts";
 import { findNearbyStores, geocodePostal } from "./_shared/stores.ts";
-import { continenteHomeOffers } from "./_shared/adapters/continente.ts";
-import { pingoDoceOffers } from "./_shared/adapters/pingodoce.ts";
+import { homeOffersForChain } from "./_shared/catalogs.ts";
 import { loadFlyers } from "./_shared/flyers.ts";
 import type { Flyer, Place, Product } from "./_shared/types.ts";
 
@@ -20,36 +19,59 @@ export default async (req: Request) => {
   try {
     const place = await geocodePostal(postalCode);
     const stores = await findNearbyStores(place, radiusKm);
-    const nearby = [...new Set(stores.map((s) => s.chain))];
-    const jobs: Promise<Product[]>[] = [];
-    if (nearby.includes("continente")) jobs.push(continenteHomeOffers());
-    if (nearby.includes("pingo_doce")) jobs.push(pingoDoceOffers());
+    const nearby = [...new Set(stores.map((s) => s.chain))].filter((c) => c !== "other");
     const [lists, rawFlyers] = await Promise.all([
-      Promise.all(jobs.map((j) => j.catch(() => [] as Product[]))),
+      mapPool(nearby, 3, async (chain) => {
+        try {
+          return await homeOffersForChain(chain);
+        } catch (err) {
+          console.error(`[offers] ${chain}`, err);
+          return [] as Product[];
+        }
+      }),
       loadFlyers(nearby).catch(() => [] as Flyer[]),
     ]);
-    const offers = lists
-      .flat()
-      .sort((a, b) => {
-        const pa =
-          a.originalPrice && a.originalPrice > 0
-            ? (a.originalPrice - a.price) / a.originalPrice
-            : 0;
-        const pb =
-          b.originalPrice && b.originalPrice > 0
-            ? (b.originalPrice - b.price) / b.originalPrice
-            : 0;
-        if (pb !== pa) return pb - pa;
-        return a.price - b.price;
-      })
-      .slice(0, 800);
+    const offers = interleaveByChain(lists).slice(0, 800);
     const flyers = rawFlyers.filter((f) => isFlyerForPlace(place, f));
-    return json({ place, offers, flyers });
+    return json({ place, offers, flyers, nearbyChains: nearby });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro ao carregar as ofertas.";
     return errorJson(message, 502);
   }
 };
+
+function discountRatio(p: Product) {
+  if (p.originalPrice && p.originalPrice > 0) {
+    return (p.originalPrice - p.price) / p.originalPrice;
+  }
+  return 0;
+}
+
+function sortDeals(products: Product[]) {
+  return [...products].sort((a, b) => {
+    const d = discountRatio(b) - discountRatio(a);
+    if (d) return d;
+    return a.price - b.price;
+  });
+}
+
+function interleaveByChain(lists: Product[][]) {
+  const ranked = lists.map(sortDeals);
+  const out: Product[] = [];
+  const seen = new Set<string>();
+  const max = Math.max(0, ...ranked.map((list) => list.length));
+  for (let i = 0; i < max; i++) {
+    for (const list of ranked) {
+      const p = list[i];
+      if (!p) continue;
+      const key = `${p.chain}:${p.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(p);
+    }
+  }
+  return out;
+}
 
 function isFlyerForPlace(place: Place, flyer: Flyer) {
   const hay = `${flyer.title} ${flyer.url}`.toLowerCase();
