@@ -1,5 +1,5 @@
 import * as cheerio from "cheerio";
-import { cached, fetchText, mapPool } from "../http.ts";
+import { cached, fetchText, mapPool, SCRAPE_TTL_MS } from "../http.ts";
 import { parseEuro, parseUnitPrice } from "../geo.ts";
 import type { Product } from "../types.ts";
 
@@ -11,7 +11,7 @@ const GRID =
 export async function searchContinente(query: string, size = 8): Promise<Product[]> {
   const q = query.trim();
   if (!q) return [];
-  return cached(`cont:search:${q}:${size}`, 45 * 60 * 1000, async () => {
+  return cached(`cont:search:${q}:${size}`, SCRAPE_TTL_MS, async () => {
     const url = `${SEARCH}?q=${encodeURIComponent(q)}&cgid=col-produtos&start=0&sz=${size}&pmin=0.01`;
     const html = await fetchText(url, {}, 15000);
     return parseContinenteTiles(html);
@@ -19,7 +19,7 @@ export async function searchContinente(query: string, size = 8): Promise<Product
 }
 
 export async function continenteHomeOffers(): Promise<Product[]> {
-  return cached("cont:promo:v1", 45 * 60 * 1000, async () => {
+  return cached("cont:promo:v1", SCRAPE_TTL_MS, async () => {
     const starts = Array.from({ length: 12 }, (_, i) => i * 35);
     const pages = await mapPool(starts, 4, async (start) => {
       try {

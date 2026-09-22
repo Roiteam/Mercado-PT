@@ -1,4 +1,4 @@
-import { cached, fetchJson } from "./http.ts";
+import { cached, fetchJson, GEO_TTL_MS, SCRAPE_TTL_MS } from "./http.ts";
 import {
   CHAIN_LABEL,
   detectChain,
@@ -43,7 +43,7 @@ export async function geocodePostal(postalCode: string): Promise<Place> {
   const cp = parsePostalCode(postalCode);
   if (!cp) throw new Error("Código postal português inválido. Usa o formato 1000-001.");
 
-  return cached(`geo:${cp}`, 24 * 60 * 60 * 1000, async () => {
+  return cached(`geo:${cp}`, GEO_TTL_MS, async () => {
     try {
       const data = await fetchJson<GeoApi>(`https://json.geoapi.pt/cp/${cp}`);
       const pair = data.centroide ?? data.centro;
@@ -83,7 +83,7 @@ export async function findNearbyStores(
   place: Place,
   radiusKm: number,
 ): Promise<Store[]> {
-  const pool = await cached(`stores:v7:${place.postalCode}`, 6 * 60 * 60 * 1000, async () => {
+  const pool = await cached(`stores:v7:${place.postalCode}`, SCRAPE_TTL_MS, async () => {
     const searchKm = 20;
     const [continente, osm] = await Promise.all([
       findContinenteStores(place, searchKm).catch(() => [] as Store[]),

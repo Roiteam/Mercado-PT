@@ -1,4 +1,4 @@
-import { cached, fetchText } from "../http.ts";
+import { cached, fetchText, SCRAPE_TTL_MS } from "../http.ts";
 import type { Product } from "../types.ts";
 
 type AldiPrice = {
@@ -32,7 +32,7 @@ export async function searchAldi(query: string, size = 8): Promise<Product[]> {
 }
 
 export async function aldiHomeOffers(): Promise<Product[]> {
-  return cached("aldi:promo:v4", 45 * 60 * 1000, async () => {
+  return cached("aldi:promo:v4", SCRAPE_TTL_MS, async () => {
     const html = await fetchText("https://www.aldi.pt/oportunidades-da-semana.html", {}, 18000);
     const raw = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/)?.[1];
     if (!raw) return [];

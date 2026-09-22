@@ -1,4 +1,4 @@
-import { cached, fetchJson } from "../http.ts";
+import { cached, fetchJson, SCRAPE_TTL_MS } from "../http.ts";
 import type { Product } from "../types.ts";
 
 type MercadonaPrice = {
@@ -40,7 +40,7 @@ export async function searchMercadona(query: string, size = 8): Promise<Product[
 }
 
 export async function mercadonaHomeOffers(): Promise<Product[]> {
-  return cached("mercadona:home:v1", 45 * 60 * 1000, async () => {
+  return cached("mercadona:home:v1", SCRAPE_TTL_MS, async () => {
     const data = await fetchJson<HomeResponse>("https://tienda.mercadona.es/api/home/", {}, 15000);
     const items = (data.sections ?? []).flatMap((section) => section.content?.items ?? []);
     return uniqueProducts(items.map(toProduct).filter((p) => p.price > 0 && p.name));

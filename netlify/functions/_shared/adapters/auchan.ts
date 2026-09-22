@@ -1,5 +1,5 @@
 import * as cheerio from "cheerio";
-import { cached, fetchText, mapPool } from "../http.ts";
+import { cached, fetchText, mapPool, SCRAPE_TTL_MS } from "../http.ts";
 import { parseEuro, parseUnitPrice } from "../geo.ts";
 import type { Product } from "../types.ts";
 
@@ -9,7 +9,7 @@ const SEARCH =
 export async function searchAuchan(query: string, size = 8): Promise<Product[]> {
   const q = query.trim();
   if (!q) return [];
-  return cached(`auchan:search:v1:${q}:${size}`, 45 * 60 * 1000, async () => {
+  return cached(`auchan:search:v1:${q}:${size}`, SCRAPE_TTL_MS, async () => {
     const url = `${SEARCH}?q=${encodeURIComponent(q)}&start=0&sz=${size}`;
     const html = await fetchText(url, {}, 15000);
     return parseAuchanTiles(html);
@@ -17,7 +17,7 @@ export async function searchAuchan(query: string, size = 8): Promise<Product[]> 
 }
 
 export async function auchanHomeOffers(): Promise<Product[]> {
-  return cached("auchan:promo:v2", 45 * 60 * 1000, async () => {
+  return cached("auchan:promo:v2", SCRAPE_TTL_MS, async () => {
     const starts = [0, 48];
     const pages = await mapPool(starts, 2, async (start) => {
       try {

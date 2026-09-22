@@ -1,5 +1,5 @@
 import * as cheerio from "cheerio";
-import { cached, fetchText } from "./http.ts";
+import { cached, fetchText, SCRAPE_TTL_MS } from "./http.ts";
 import type { ChainId, Flyer } from "./types.ts";
 
 export async function loadFlyers(chains: ChainId[]): Promise<Flyer[]> {
@@ -18,17 +18,17 @@ export async function loadFlyers(chains: ChainId[]): Promise<Flyer[]> {
 async function loadChainFlyers(chain: ChainId): Promise<Flyer[]> {
   switch (chain) {
     case "continente":
-      return cached("flyers:continente:v2", 6 * 60 * 60 * 1000, scrapeContinenteFlyers);
+      return cached("flyers:continente:v2", SCRAPE_TTL_MS, scrapeContinenteFlyers);
     case "pingo_doce":
-      return cached("flyers:pingo:v2", 6 * 60 * 60 * 1000, scrapePingoFlyers);
+      return cached("flyers:pingo:v2", SCRAPE_TTL_MS, scrapePingoFlyers);
     case "auchan":
-      return cached("flyers:auchan:v2", 6 * 60 * 60 * 1000, scrapeAuchanFlyers);
+      return cached("flyers:auchan:v2", SCRAPE_TTL_MS, scrapeAuchanFlyers);
     case "lidl":
-      return cached("flyers:lidl:v2", 6 * 60 * 60 * 1000, scrapeLidlFlyers);
+      return cached("flyers:lidl:v2", SCRAPE_TTL_MS, scrapeLidlFlyers);
     case "aldi":
-      return cached("flyers:aldi:v2", 6 * 60 * 60 * 1000, scrapeAldiFlyers);
+      return cached("flyers:aldi:v2", SCRAPE_TTL_MS, scrapeAldiFlyers);
     case "intermarche":
-      return cached("flyers:intermarche:v2", 6 * 60 * 60 * 1000, async () => {
+      return cached("flyers:intermarche:v2", SCRAPE_TTL_MS, async () => {
         try {
           return await scrapeIntermarcheFlyers();
         } catch {

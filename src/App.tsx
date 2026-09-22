@@ -734,7 +734,7 @@ function DealsBoard({
         <div>
           <h2>Ofertas e folhetos</h2>
           <p className="hint refresh-note">
-            Os produtos atualizam a cada 45 minutos. Os folhetos, a cada 6 horas.
+            Produtos e folhetos atualizam no máximo 2 vezes por dia.
           </p>
         </div>
         <div className="tabs">

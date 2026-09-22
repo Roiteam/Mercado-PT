@@ -1,10 +1,10 @@
-import { cached, fetchText, mapPool } from "../http.ts";
+import { cached, fetchText, mapPool, SCRAPE_TTL_MS } from "../http.ts";
 import type { Product } from "../types.ts";
 
 export async function searchLidl(query: string, size = 8): Promise<Product[]> {
   const q = query.trim();
   if (!q) return [];
-  return cached(`lidl:search:v2:${q}:${size}`, 45 * 60 * 1000, async () => {
+  return cached(`lidl:search:v2:${q}:${size}`, SCRAPE_TTL_MS, async () => {
     const html = await fetchText(
       `https://www.lidl.pt/q/search?q=${encodeURIComponent(q)}`,
       {},
@@ -15,7 +15,7 @@ export async function searchLidl(query: string, size = 8): Promise<Product[]> {
 }
 
 export async function lidlHomeOffers(): Promise<Product[]> {
-  return cached("lidl:promo:v4", 45 * 60 * 1000, async () => {
+  return cached("lidl:promo:v4", SCRAPE_TTL_MS, async () => {
     const home = await fetchText("https://www.lidl.pt/", {}, 15000);
     const hrefs = [
       ...new Set(

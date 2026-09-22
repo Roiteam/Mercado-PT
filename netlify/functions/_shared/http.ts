@@ -42,6 +42,10 @@ export async function fetchJson<T>(
   return JSON.parse(text) as T;
 }
 
+/** Catalogs, flyers, and OSM stores: at most twice a day. */
+export const SCRAPE_TTL_MS = 12 * 60 * 60 * 1000;
+export const GEO_TTL_MS = 24 * 60 * 60 * 1000;
+
 const mem = new Map<string, { exp: number; value: unknown }>();
 
 function blobKey(key: string) {
