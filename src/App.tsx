@@ -24,6 +24,7 @@ import {
   storeMapsLink,
   uid,
 } from "./format";
+import { BarcodeScan } from "./BarcodeScan";
 import type {
   ChainId,
   Flyer,
@@ -59,6 +60,8 @@ export default function App() {
   const [error, setError] = useState("");
   const [split, setSplit] = useState<OptimizeResponse | null>(null);
   const [listOpen, setListOpen] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanNote, setScanNote] = useState("");
   const [syncNote, setSyncNote] = useState("");
   const hydrated = useRef(false);
   const saveTimer = useRef<number>(0);
@@ -92,13 +95,15 @@ export default function App() {
   }, [list, listTitle, postal, remoteListId, householdId]);
 
   useEffect(() => {
-    if (!listOpen) return;
+    if (!listOpen && !scanning) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setListOpen(false);
+      if (e.key !== "Escape") return;
+      if (scanning) setScanning(false);
+      else setListOpen(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [listOpen]);
+  }, [listOpen, scanning]);
 
   async function hydrateLists(localItems: ListItem[], cap: string) {
     try {
@@ -173,6 +178,7 @@ export default function App() {
       return [...prev, { id: uid(), query, qty: 1 }];
     });
     setDraftItem("");
+    setScanNote("");
     setSplit(null);
   }
 
@@ -382,8 +388,9 @@ export default function App() {
                   placeholder="Nome da lista"
                 />
                 <p className="hint">
-                  Podes ir acrescentando produtos ao longo dos dias. Quando fores às
-                  compras, comparamos os preços nos supermercados perto de ti
+                  Podes ir acrescentando produtos ao longo dos dias, a escrever ou a
+                  apontar a câmara para o código de barras. Quando fores às compras,
+                  comparamos os preços nos supermercados perto de ti
                   {pricedNearby.length
                     ? ` (preços online: ${joinPt(
                         pricedNearby.map((c) => CHAIN_LABEL[c]),
@@ -403,8 +410,21 @@ export default function App() {
                     onChange={(e) => setDraftItem(e.target.value)}
                     placeholder="ex. leite, pão, azeite..."
                   />
-                  <button type="submit">Adicionar</button>
+                  <div className="add-row-actions">
+                    <button
+                      type="button"
+                      className="scan"
+                      onClick={() => {
+                        setScanNote("");
+                        setScanning(true);
+                      }}
+                    >
+                      Código de barras
+                    </button>
+                    <button type="submit">Adicionar</button>
+                  </div>
                 </form>
+                {scanNote ? <p className="hint">{scanNote}</p> : null}
                 <ul className="list">
                   {list.map((item) => (
                     <li key={item.id}>
@@ -451,7 +471,9 @@ export default function App() {
                   ))}
                 </ul>
                 {!list.length ? (
-                  <p className="empty">A lista está vazia. Adiciona o primeiro produto.</p>
+                  <p className="empty">
+                    A lista está vazia. Escreve um produto ou lê o código de barras.
+                  </p>
                 ) : null}
                 <button
                   className="primary close-btn"
@@ -469,6 +491,22 @@ export default function App() {
                 </button>
               </aside>
             </div>
+          ) : null}
+          {scanning ? (
+            <BarcodeScan
+              onClose={() => setScanning(false)}
+              onProduct={(name) => {
+                addItem(name);
+                setListOpen(true);
+                setScanning(false);
+                setScanNote(`${name} adicionado.`);
+              }}
+              onUnknown={() => {
+                setScanning(false);
+                setListOpen(true);
+                setScanNote("Código lido, mas não encontrámos o nome. Escreve o produto.");
+              }}
+            />
           ) : null}
         </>
       ) : null}

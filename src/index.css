@@ -185,10 +185,20 @@ button {
   margin: 18px 0 10px;
 }
 
+.add-row-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
 .gate form .primary,
 .add-row button {
   width: 100%;
   min-height: 48px;
+}
+
+.add-row .scan {
+  background: #efe3cf;
 }
 
 .gate input,
@@ -583,6 +593,56 @@ button {
   padding-bottom: 8px;
 }
 
+.scan-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: #111;
+  color: #fff;
+}
+
+.scan-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.scan-frame {
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  top: 28%;
+  height: 28%;
+  border: 3px solid #fff;
+  border-radius: 16px;
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.scan-ui {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: max(20px, env(safe-area-inset-bottom, 0px));
+  display: grid;
+  gap: 12px;
+}
+
+.scan-ui p {
+  margin: 0;
+  text-align: center;
+  font-weight: 600;
+}
+
+.scan-ui .ghost {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  border-color: transparent;
+  min-height: 48px;
+}
+
 .list {
   list-style: none;
   padding: 0;
@@ -794,6 +854,12 @@ button {
   .gate form,
   .add-row {
     flex-direction: row;
+  }
+
+  .add-row-actions {
+    display: flex;
+    width: auto;
+    flex: 0 0 auto;
   }
 
   .gate form .primary,
