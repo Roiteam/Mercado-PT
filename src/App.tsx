@@ -18,20 +18,26 @@ import {
   loadHouseholdId,
   loadList,
   loadPostal,
+  loadPreferredStoreId,
   loadRadius,
+  loadWatchedStoreIds,
   saveList,
   savePostal,
+  savePreferredStoreId,
   saveRadius,
+  saveWatchedStoreIds,
   storeMapsLink,
   uid,
 } from "./format";
 import { BarcodeScan } from "./BarcodeScan";
+import { offersForChains, pickBest, suggestAlternatives } from "./match";
 import type {
   ChainId,
   Flyer,
   ListItem,
   OffersResponse,
   OptimizeResponse,
+  Product,
   ShoppingList,
   Store,
   StoresResponse,
@@ -62,9 +68,15 @@ export default function App() {
   const [split, setSplit] = useState<OptimizeResponse | null>(null);
   const [listOpen, setListOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [pendingAdd, setPendingAdd] = useState<{ name: string; qty: number } | null>(null);
+  const [pendingAdd, setPendingAdd] = useState<{
+    name: string;
+    qty: number;
+    extras?: Partial<ListItem>;
+  } | null>(null);
   const [listFlash, setListFlash] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [syncNote, setSyncNote] = useState("");
+  const [watchedIds, setWatchedIds] = useState<string[] | null>(null);
+  const [preferredId, setPreferredId] = useState("");
   const hydrated = useRef(false);
   const dirtyList = useRef(false);
   const saveTimer = useRef<number>(0);
@@ -99,6 +111,20 @@ export default function App() {
     }, 500);
     return () => window.clearTimeout(saveTimer.current);
   }, [list, listTitle, postal, remoteListId, householdId]);
+
+  useEffect(() => {
+    if (!storesData) return;
+    const ids = new Set(storesData.stores.map((s) => s.id));
+    const saved = loadWatchedStoreIds();
+    if (saved?.length) {
+      const keep = saved.filter((id) => ids.has(id));
+      setWatchedIds(keep.length ? keep : null);
+    } else {
+      setWatchedIds(null);
+    }
+    const pref = loadPreferredStoreId();
+    setPreferredId(pref && ids.has(pref) ? pref : "");
+  }, [storesData?.place.postalCode, storesData?.radiusKm, storesData?.stores.length]);
 
   useEffect(() => {
     if (!listOpen && !scanning && !pendingAdd) return;
@@ -170,13 +196,116 @@ export default function App() {
     if (postal) void boot(postal, next);
   }
 
+  const allStores = storesData?.stores ?? [];
+  const watchedStores =
+    watchedIds?.length
+      ? allStores.filter((s) => watchedIds.includes(s.id))
+      : allStores;
+  const activeStores = watchedStores.length ? watchedStores : allStores;
+  const watchedChainIds = [...new Set(activeStores.map((s) => s.chain))].filter(
+    (c) => c !== "other",
+  ) as ChainId[];
+  const preferredStore = allStores.find((s) => s.id === preferredId) ?? null;
+  const offerPool = offersForChains(offers?.offers ?? [], watchedChainIds);
+
+  function toggleWatch(id: string) {
+    const current = watchedIds ?? allStores.map((s) => s.id);
+    const next = current.includes(id)
+      ? current.filter((x) => x !== id)
+      : [...current, id];
+    if (!next.length) return;
+    const value = next.length === allStores.length ? null : next;
+    setWatchedIds(value);
+    saveWatchedStoreIds(value);
+    if (preferredId === id && !next.includes(id)) {
+      setPreferredId("");
+      savePreferredStoreId("");
+    }
+  }
+
+  function choosePreferred(id: string) {
+    const next = preferredId === id ? "" : id;
+    setPreferredId(next);
+    savePreferredStoreId(next);
+    if (next && watchedIds && !watchedIds.includes(next)) {
+      const ids = [...watchedIds, next];
+      setWatchedIds(ids);
+      saveWatchedStoreIds(ids);
+    }
+  }
+
+  const watchedKey = watchedChainIds.join(",");
+  useEffect(() => {
+    if (!offers) return;
+    const pool = offersForChains(offers.offers, watchedChainIds);
+    setList((prev) => {
+      let changed = false;
+      const next = prev.map((item) => {
+        if (item.imageUrl && item.noOffer === false) return item;
+        const best = pickBest(item.query, pool);
+        if (best) {
+          changed = true;
+          return {
+            ...item,
+            imageUrl: item.imageUrl || best.item.imageUrl,
+            productName: item.productName || best.item.name,
+            chain: item.chain || best.item.chain,
+            noOffer: false,
+          };
+        }
+        if (item.noOffer || item.storeId) return item;
+        changed = true;
+        return { ...item, noOffer: true };
+      });
+      return changed ? next : prev;
+    });
+  }, [offers, watchedKey]);
+
+  function assignPreferred(itemId: string) {
+    if (!preferredStore) return;
+    dirtyList.current = true;
+    setList((prev) =>
+      prev.map((it) =>
+        it.id === itemId
+          ? {
+              ...it,
+              storeId: preferredStore.id,
+              chain: preferredStore.chain,
+            }
+          : it,
+      ),
+    );
+    showFlash("ok", "Adicionado");
+  }
+
+  function replaceWithAlt(itemId: string, product: Product) {
+    dirtyList.current = true;
+    setList((prev) =>
+      prev.map((it) =>
+        it.id === itemId
+          ? {
+              ...it,
+              query: product.name,
+              imageUrl: product.imageUrl,
+              productName: product.name,
+              chain: product.chain,
+              noOffer: false,
+              storeId: undefined,
+              checked: false,
+            }
+          : it,
+      ),
+    );
+    showFlash("ok", "Adicionado");
+  }
+
   function showFlash(kind: "ok" | "err", text: string, ms = kind === "err" ? 6000 : 3200) {
     window.clearTimeout(flashTimer.current);
     flushSync(() => setListFlash({ kind, text }));
     flashTimer.current = window.setTimeout(() => setListFlash(null), ms);
   }
 
-  function addItem(raw: string, amount = 1) {
+  function addItem(raw: string, amount = 1, extras: Partial<ListItem> = {}) {
     const query = raw.trim();
     const n = Math.max(1, Math.floor(Number(amount) || 1));
     if (query.length < 2) {
@@ -184,16 +313,37 @@ export default function App() {
       return false;
     }
     dirtyList.current = true;
+    const pool = offerPool;
+    const best = extras.imageUrl ? null : pickBest(query, pool);
+    const extra: Partial<ListItem> = best
+      ? {
+          ...extras,
+          imageUrl: extras.imageUrl || best.item.imageUrl,
+          productName: extras.productName || best.item.name,
+          chain: extras.chain || best.item.chain,
+          noOffer: false,
+        }
+      : {
+          ...extras,
+          noOffer: extras.noOffer ?? !extras.imageUrl,
+        };
     setList((prev) => {
       const existing = prev.find(
         (it) => it.query.toLowerCase() === query.toLowerCase(),
       );
       if (existing) {
         return prev.map((it) =>
-          it.id === existing.id ? { ...it, qty: it.qty + n } : it,
+          it.id === existing.id
+            ? {
+                ...it,
+                ...extra,
+                qty: it.qty + n,
+                checked: false,
+              }
+            : it,
         );
       }
-      return [...prev, { id: uid(), query, qty: n }];
+      return [...prev, { id: uid(), query, qty: n, checked: false, ...extra }];
     });
     setDraftItem("");
     setPendingAdd(null);
@@ -202,18 +352,18 @@ export default function App() {
     return true;
   }
 
-  function askQty(raw: string) {
+  function askQty(raw: string, extras?: Partial<ListItem>) {
     const name = raw.trim();
     if (name.length < 2) {
       showFlash("err", "Erro");
       return;
     }
-    setPendingAdd({ name, qty: 1 });
+    setPendingAdd({ name, qty: 1, extras });
   }
 
   function confirmPending() {
     if (!pendingAdd) return;
-    addItem(pendingAdd.name, pendingAdd.qty);
+    addItem(pendingAdd.name, pendingAdd.qty, pendingAdd.extras);
   }
 
   async function comparePrices() {
@@ -221,7 +371,10 @@ export default function App() {
     setOptimizing(true);
     setError("");
     try {
-      const result = await optimizeList(postal, radiusKm, list);
+      const result = await optimizeList(postal, radiusKm, list, {
+        chainIds: watchedChainIds,
+        preferredChain: preferredStore?.chain,
+      });
       setSplit(result);
       setListOpen(false);
       setView("ofertas");
@@ -276,7 +429,7 @@ export default function App() {
           (it) => it.query.toLowerCase() === item.query.toLowerCase(),
         );
         if (existing) existing.qty += item.qty;
-        else next.push({ id: uid(), query: item.query, qty: item.qty });
+        else next.push({ id: uid(), query: item.query, qty: item.qty, imageUrl: item.imageUrl, chain: item.chain });
       }
       return next;
     });
@@ -284,9 +437,15 @@ export default function App() {
     setView("ofertas");
   }
 
-  const pricedNearby = storesData?.pricedChains ?? [];
-  const storeCount = storesData?.stores.length ?? 0;
-  const qty = list.reduce((n, it) => n + it.qty, 0);
+  const pricedNearby = watchedChainIds.filter((c) =>
+    (storesData?.pricedChains ?? []).includes(c),
+  );
+  const storeCount = allStores.length;
+  const remaining = list.filter((it) => !it.checked);
+  const qty = remaining.reduce((n, it) => n + it.qty, 0);
+  const sortedList = [...list].sort(
+    (a, b) => Number(!!a.checked) - Number(!!b.checked),
+  );
 
   return (
     <div className="page">
@@ -369,14 +528,28 @@ export default function App() {
               />
             ) : (
               <>
-                <StoreStrip stores={storesData?.stores ?? []} loading={loading} />
-                <DealsBoard
-                  offers={offers?.offers ?? []}
-                  flyers={offers?.flyers ?? []}
-                  chains={[...new Set((storesData?.stores ?? []).map((s) => s.chain))]}
+                <StorePicker
+                  stores={allStores}
+                  watchedIds={watchedIds}
+                  preferredId={preferredId}
                   loading={loading}
-                  onAdd={(name) => {
-                    addItem(name);
+                  onToggle={toggleWatch}
+                  onPreferred={choosePreferred}
+                />
+                <DealsBoard
+                  offers={offerPool}
+                  flyers={(offers?.flyers ?? []).filter((f) =>
+                    watchedChainIds.includes(f.chain),
+                  )}
+                  chains={watchedChainIds}
+                  loading={loading}
+                  onAdd={(p) => {
+                    addItem(p.name, 1, {
+                      imageUrl: p.imageUrl,
+                      productName: p.name,
+                      chain: p.chain,
+                      noOffer: false,
+                    });
                   }}
                 />
               </>
@@ -425,8 +598,12 @@ export default function App() {
                 />
                 <p className="hint">
                   Podes ir acrescentando produtos ao longo dos dias, a escrever ou a
-                  apontar a câmara para o código de barras. Quando fores às compras,
-                  comparamos os preços nos supermercados perto de ti
+                  apontar a câmara para o código de barras. Os produtos sem oferta
+                  ficam sinalizados
+                  {preferredStore
+                    ? ` e podes levá-los no teu ${preferredStore.name}.`
+                    : " — escolhe um supermercado preferido para os receber."}{" "}
+                  Quando fores às compras, comparamos os preços
                   {pricedNearby.length
                     ? ` (preços online: ${joinPt(
                         pricedNearby.map((c) => CHAIN_LABEL[c]),
@@ -510,49 +687,139 @@ export default function App() {
                   {listFlash?.text ?? ""}
                 </p>
                 <ul className="list">
-                  {list.map((item) => (
-                    <li key={item.id}>
-                      <span className="item-name">{item.query}</span>
-                      <div className="qty">
+                  {sortedList.map((item) => {
+                    const alts =
+                      item.noOffer && !item.storeId
+                        ? suggestAlternatives(item.query, offerPool)
+                        : [];
+                    return (
+                      <li key={item.id} className={item.checked ? "done" : undefined}>
+                        <label className="check-item">
+                          <input
+                            type="checkbox"
+                            checked={!!item.checked}
+                            onChange={() =>
+                              setList((prev) =>
+                                prev.map((it) =>
+                                  it.id === item.id
+                                    ? { ...it, checked: !it.checked }
+                                    : it,
+                                ),
+                              )
+                            }
+                            aria-label={
+                              item.checked
+                                ? `Tirar ${item.query} do carrinho`
+                                : `Meter ${item.query} no carrinho`
+                            }
+                          />
+                        </label>
+                        {item.imageUrl ? (
+                          <img
+                            className="list-thumb"
+                            src={item.imageUrl}
+                            alt=""
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="list-thumb ph" aria-hidden="true" />
+                        )}
+                        <div className="item-main">
+                          <span className="item-name">
+                            {item.productName || item.query}
+                          </span>
+                          {item.productName && item.productName !== item.query ? (
+                            <span className="item-sub">procuravas “{item.query}”</span>
+                          ) : null}
+                          {item.chain ? (
+                            <span className="item-sub">{CHAIN_LABEL[item.chain]}</span>
+                          ) : null}
+                          {item.noOffer && !item.storeId ? (
+                            <span className="item-flag">Sem oferta nos folhetos</span>
+                          ) : null}
+                          {item.storeId && preferredStore ? (
+                            <span className="item-flag ok">
+                              Levar no {preferredStore.name}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="qty">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setList((prev) =>
+                                prev.map((it) =>
+                                  it.id === item.id
+                                    ? { ...it, qty: Math.max(1, it.qty - 1) }
+                                    : it,
+                                ),
+                              )
+                            }
+                          >
+                            −
+                          </button>
+                          <strong>{item.qty}</strong>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setList((prev) =>
+                                prev.map((it) =>
+                                  it.id === item.id ? { ...it, qty: it.qty + 1 } : it,
+                                ),
+                              )
+                            }
+                          >
+                            +
+                          </button>
+                        </div>
                         <button
+                          className="remove"
                           type="button"
                           onClick={() =>
-                            setList((prev) =>
-                              prev.map((it) =>
-                                it.id === item.id
-                                  ? { ...it, qty: Math.max(1, it.qty - 1) }
-                                  : it,
-                              ),
-                            )
+                            setList((prev) => prev.filter((it) => it.id !== item.id))
                           }
                         >
-                          −
+                          ×
                         </button>
-                        <strong>{item.qty}</strong>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setList((prev) =>
-                              prev.map((it) =>
-                                it.id === item.id ? { ...it, qty: it.qty + 1 } : it,
-                              ),
-                            )
-                          }
-                        >
-                          +
-                        </button>
-                      </div>
-                      <button
-                        className="remove"
-                        type="button"
-                        onClick={() =>
-                          setList((prev) => prev.filter((it) => it.id !== item.id))
-                        }
-                      >
-                        ×
-                      </button>
-                    </li>
-                  ))}
+                        {item.noOffer && !item.checked ? (
+                          <div className="item-alts">
+                            {alts.length ? (
+                              <>
+                                <p>Em oferta por perto:</p>
+                                <div className="alt-row">
+                                  {alts.map((p) => (
+                                    <button
+                                      key={`${p.chain}-${p.id}`}
+                                      type="button"
+                                      className="alt-chip"
+                                      onClick={() => replaceWithAlt(item.id, p)}
+                                    >
+                                      {p.imageUrl ? <img src={p.imageUrl} alt="" /> : null}
+                                      <span>
+                                        {p.name}
+                                        <em>
+                                          {CHAIN_LABEL[p.chain]} · {euro(p.price)}
+                                        </em>
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </>
+                            ) : null}
+                            {preferredStore && !item.storeId ? (
+                              <button
+                                type="button"
+                                className="ghost prefer-add"
+                                onClick={() => assignPreferred(item.id)}
+                              >
+                                Levar no {preferredStore.name}
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </li>
+                    );
+                  })}
                 </ul>
                 {!list.length ? (
                   <p className="empty">
@@ -780,31 +1047,71 @@ function ListsBoard({
   );
 }
 
-function StoreStrip({ stores, loading }: { stores: Store[]; loading: boolean }) {
+function StorePicker({
+  stores,
+  watchedIds,
+  preferredId,
+  loading,
+  onToggle,
+  onPreferred,
+}: {
+  stores: Store[];
+  watchedIds: string[] | null;
+  preferredId: string;
+  loading: boolean;
+  onToggle: (id: string) => void;
+  onPreferred: (id: string) => void;
+}) {
   if (loading && !stores.length) {
     return <div className="skeleton-row" />;
   }
+  const watching = (id: string) => !watchedIds || watchedIds.includes(id);
   return (
     <section>
       <h2>Supermercados perto de ti</h2>
+      <p className="hint">
+        Escolhe quais seguir. Marca o preferido: os produtos sem oferta nos
+        folhetos podem ir para essa loja.
+      </p>
       <div className="store-row">
-        {stores.slice(0, 12).map((store) => (
-          <a
-            key={store.id}
-            className="store-card"
-            href={storeMapsLink(store)}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <span
-              className="dot"
-              style={{ background: CHAIN_TONE[store.chain] ?? "#6d4c41" }}
-            />
-            <strong>{store.name}</strong>
-            <em>{store.distanceKm.toFixed(1)} km</em>
-            <span>{store.address}</span>
-          </a>
-        ))}
+        {stores.slice(0, 12).map((store) => {
+          const on = watching(store.id);
+          const fav = preferredId === store.id;
+          return (
+            <article
+              key={store.id}
+              className={`store-card${on ? " on" : ""}${fav ? " fav" : ""}`}
+            >
+              <span
+                className="dot"
+                style={{ background: CHAIN_TONE[store.chain] ?? "#6d4c41" }}
+              />
+              <strong>{store.name}</strong>
+              <em>{store.distanceKm.toFixed(1)} km</em>
+              <span>{store.address}</span>
+              <div className="store-actions">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={() => onToggle(store.id)}
+                  />
+                  Seguir
+                </label>
+                <button
+                  type="button"
+                  className={fav ? "star on" : "star"}
+                  onClick={() => onPreferred(store.id)}
+                >
+                  {fav ? "Preferido" : "Tornar preferido"}
+                </button>
+              </div>
+              <a href={storeMapsLink(store)} target="_blank" rel="noreferrer">
+                Mapa
+              </a>
+            </article>
+          );
+        })}
       </div>
     </section>
   );
@@ -821,7 +1128,7 @@ function DealsBoard({
   flyers: Flyer[];
   chains: ChainId[];
   loading: boolean;
-  onAdd: (name: string) => void;
+  onAdd: (product: Product) => void;
 }) {
   const [tab, setTab] = useState<"offers" | "flyers">("offers");
   const [chain, setChain] = useState<"all" | ChainId>("all");
@@ -952,7 +1259,7 @@ function DealsBoard({
                   <strong>{euro(p.price)}</strong>
                   {p.originalPrice ? <s>{euro(p.originalPrice)}</s> : null}
                 </p>
-                <button type="button" onClick={() => onAdd(p.name)}>
+                <button type="button" onClick={() => onAdd(p)}>
                   Adicionar à lista
                 </button>
               </article>
@@ -1088,7 +1395,9 @@ function SplitView({
                     </p>
                     <span>
                       {it.product?.brand ? `${it.product.brand} · ` : ""}
-                      procuravas “{it.query}”
+                      {it.product
+                        ? `procuravas “${it.query}”`
+                        : "sem oferta no catálogo — leva no preferido"}
                     </span>
                   </div>
                   <b>{euro(it.lineTotal)}</b>

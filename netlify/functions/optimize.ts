@@ -16,7 +16,9 @@ import type {
 type Body = {
   postalCode?: string;
   radiusKm?: number;
-  items?: { id?: string; query: string; qty?: number }[];
+  items?: { id?: string; query: string; qty?: number; storeId?: string; chain?: ChainId }[];
+  chainIds?: ChainId[];
+  preferredChain?: ChainId;
 };
 
 export default async (req: Request) => {
@@ -34,6 +36,8 @@ export default async (req: Request) => {
       id: it.id ?? crypto.randomUUID(),
       query: it.query.trim(),
       qty: Math.max(1, Number(it.qty) || 1),
+      storeId: it.storeId,
+      chain: it.chain,
     }))
     .filter((it) => it.query.length >= 2)
     .slice(0, 20);
@@ -44,8 +48,12 @@ export default async (req: Request) => {
     const place = await geocodePostal(postalCode);
     const stores = await findNearbyStores(place, radiusKm);
     const nearest = nearestByChain(stores);
-    const chains = PRICED_CHAINS.filter((c) => nearest.has(c));
+    const nearbyPriced = PRICED_CHAINS.filter((c) => nearest.has(c));
+    const requested = (body.chainIds ?? []).filter((c) => nearbyPriced.includes(c));
+    const chains = requested.length ? requested : nearbyPriced;
     const usable = chains.length ? chains : PRICED_CHAINS;
+    const preferredChain =
+      body.preferredChain && nearest.has(body.preferredChain) ? body.preferredChain : undefined;
 
     const perItem = await mapPool(items, 4, async (item) => {
       const query = expandQuery(item.query);
@@ -67,7 +75,34 @@ export default async (req: Request) => {
     const unmatched: OptimizeResponse["unmatched"] = [];
 
     for (const row of perItem) {
+      const forced =
+        row.item.chain && nearest.has(row.item.chain) ? row.item.chain : undefined;
+      if (forced) {
+        const hit = row.matches.find((m) => m.chain === forced);
+        const list = groupsMap.get(forced) ?? [];
+        list.push({
+          query: row.item.query,
+          qty: row.item.qty,
+          product: hit?.product ?? null,
+          score: hit?.score ?? 0,
+          lineTotal: hit ? round2(hit.product.price * row.item.qty) : 0,
+        });
+        groupsMap.set(forced, list);
+        continue;
+      }
       if (!row.matches.length) {
+        if (preferredChain) {
+          const list = groupsMap.get(preferredChain) ?? [];
+          list.push({
+            query: row.item.query,
+            qty: row.item.qty,
+            product: null,
+            score: 0,
+            lineTotal: 0,
+          });
+          groupsMap.set(preferredChain, list);
+          continue;
+        }
         unmatched.push({
           query: row.item.query,
           qty: row.item.qty,

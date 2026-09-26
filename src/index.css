@@ -432,7 +432,6 @@ button {
 }
 
 .store-card {
-  text-decoration: none;
   color: inherit;
   padding: 14px;
   border-radius: 18px;
@@ -441,6 +440,49 @@ button {
   min-height: 132px;
   flex: 0 0 min(78vw, 280px);
   scroll-snap-align: start;
+  background: var(--card);
+}
+
+.store-card.on {
+  outline: 2px solid var(--leaf);
+}
+
+.store-card.fav {
+  background: #efe3cf;
+}
+
+.store-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+  font-size: 0.85rem;
+}
+
+.store-actions label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.store-card .star {
+  min-height: 36px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 0;
+  background: #fff;
+}
+
+.store-card .star.on {
+  background: var(--gold);
+  color: #1c1710;
+}
+
+.store-card > a {
+  color: var(--leaf);
+  font-size: 0.86rem;
+  font-weight: 700;
 }
 
 .store-card em,
@@ -744,18 +786,130 @@ button {
 .list li {
   display: grid;
   grid-template-columns: 1fr auto;
-  grid-template-areas:
-    "name remove"
-    "qty qty";
   gap: 8px;
   align-items: center;
   padding: 8px 0;
   border-bottom: 1px solid var(--line);
 }
 
+.list-panel .list li {
+  display: grid;
+  grid-template-columns: 40px 56px 1fr auto;
+  grid-template-areas:
+    "check img name remove"
+    "check img qty qty"
+    "alts alts alts alts";
+  gap: 8px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.list-panel .list li.done {
+  opacity: 0.55;
+}
+
+.list-panel .list li.done .item-name {
+  text-decoration: line-through;
+}
+
+.check-item {
+  grid-area: check;
+  display: grid;
+  place-items: center;
+}
+
+.check-item input {
+  width: 22px;
+  height: 22px;
+}
+
+.list-thumb {
+  grid-area: img;
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 12px;
+  background: #efe3cf;
+}
+
+.item-main {
+  grid-area: name;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
 .item-name {
   overflow-wrap: anywhere;
-  grid-area: name;
+}
+
+.item-sub,
+.item-flag {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.item-flag {
+  color: var(--tomato);
+  font-weight: 700;
+}
+
+.item-flag.ok {
+  color: var(--leaf);
+}
+
+.item-alts {
+  grid-area: alts;
+  display: grid;
+  gap: 8px;
+}
+
+.item-alts p {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.alt-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.alt-chip {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  max-width: 220px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 12px;
+  background: #efe3cf;
+  text-align: left;
+}
+
+.alt-chip img {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.alt-chip span {
+  display: grid;
+  font-size: 0.78rem;
+}
+
+.alt-chip em {
+  font-style: normal;
+  color: var(--muted);
+}
+
+.prefer-add {
+  justify-self: start;
+  min-height: 40px;
 }
 
 .qty {
@@ -1058,15 +1212,25 @@ button {
     padding-bottom: 0;
   }
 
-  .list li {
-    grid-template-columns: 1fr auto auto;
-    grid-template-areas: none;
+  .list-panel .list li {
+    grid-template-columns: 40px 56px 1fr auto auto;
+    grid-template-areas:
+      "check img name qty remove"
+      "alts alts alts alts alts";
   }
 
   .item-name,
   .qty,
   .remove {
     grid-area: auto;
+  }
+
+  .qty {
+    grid-area: qty;
+  }
+
+  .remove {
+    grid-area: remove;
   }
 
   .qty button,

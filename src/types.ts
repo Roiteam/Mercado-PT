@@ -49,6 +49,12 @@ export type ListItem = {
   id: string;
   query: string;
   qty: number;
+  checked?: boolean;
+  imageUrl?: string;
+  productName?: string;
+  chain?: ChainId;
+  storeId?: string;
+  noOffer?: boolean;
 };
 
 export type MatchResult = {

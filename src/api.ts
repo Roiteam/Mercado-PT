@@ -1,4 +1,5 @@
 import type {
+  ChainId,
   ListItem,
   OffersResponse,
   OptimizeResponse,
@@ -35,11 +36,18 @@ export function optimizeList(
   postalCode: string,
   radiusKm: number,
   items: ListItem[],
+  opts?: { chainIds?: ChainId[]; preferredChain?: ChainId },
 ) {
   return fetch("/api/optimize", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ postalCode, radiusKm, items }),
+    body: JSON.stringify({
+      postalCode,
+      radiusKm,
+      items,
+      chainIds: opts?.chainIds,
+      preferredChain: opts?.preferredChain,
+    }),
   }).then((res) => readJson<OptimizeResponse>(res));
 }
 

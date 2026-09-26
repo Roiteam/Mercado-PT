@@ -65,6 +65,8 @@ const POSTAL_KEY = "poupaja.postal";
 const LIST_KEY = "poupaja.list";
 const RADIUS_KEY = "poupaja.radius";
 const HOUSEHOLD_KEY = "poupaja.household";
+const WATCHED_KEY = "poupaja.watchedStores";
+const PREFERRED_KEY = "poupaja.preferredStore";
 
 export function loadHouseholdId() {
   let id = localStorage.getItem(HOUSEHOLD_KEY);
@@ -98,4 +100,29 @@ export function loadList<T>(fallback: T): T {
 }
 export function saveList(v: unknown) {
   localStorage.setItem(LIST_KEY, JSON.stringify(v));
+}
+
+export function loadWatchedStoreIds(): string[] | null {
+  try {
+    const raw = localStorage.getItem(WATCHED_KEY);
+    if (!raw) return null;
+    const ids = JSON.parse(raw) as string[];
+    return Array.isArray(ids) ? ids.filter((id) => typeof id === "string") : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveWatchedStoreIds(ids: string[] | null) {
+  if (!ids) localStorage.removeItem(WATCHED_KEY);
+  else localStorage.setItem(WATCHED_KEY, JSON.stringify(ids));
+}
+
+export function loadPreferredStoreId() {
+  return localStorage.getItem(PREFERRED_KEY) ?? "";
+}
+
+export function savePreferredStoreId(id: string) {
+  if (!id) localStorage.removeItem(PREFERRED_KEY);
+  else localStorage.setItem(PREFERRED_KEY, id);
 }
