@@ -643,6 +643,96 @@ button {
   min-height: 48px;
 }
 
+.scan-ui .primary {
+  min-height: 48px;
+  width: 100%;
+}
+
+.scan-ui.scan-card {
+  background: rgba(17, 17, 17, 0.82);
+  border-radius: 20px;
+  padding: 16px;
+}
+
+.scan-qty {
+  justify-content: center;
+  grid-area: auto;
+}
+
+.scan-qty button {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.scan-err,
+.list-flash.err {
+  color: #ff8b7b;
+}
+
+.qty-ask {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0 10px;
+  padding: 14px;
+  border-radius: 18px;
+  background: #efe3cf;
+}
+
+.qty-ask .qty {
+  justify-content: center;
+  grid-area: auto;
+}
+
+.qty-ask-name,
+.scan-ui .qty-ask-name {
+  margin: 0;
+  font-weight: 800;
+  text-align: center;
+}
+
+.list-note {
+  margin: 0 0 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.list-note:empty {
+  display: none;
+}
+
+.list-note.ok {
+  color: var(--leaf);
+}
+
+.list-note.err {
+  color: var(--tomato);
+}
+
+.list-flash {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  z-index: 75;
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 14px;
+  text-align: center;
+  font-weight: 800;
+  background: var(--leaf-dark);
+  color: #fff;
+  box-shadow: var(--shadow);
+}
+
+.list-flash.ok {
+  background: var(--leaf);
+}
+
+.list-flash.err {
+  background: var(--tomato);
+  color: #fff;
+}
+
 .list {
   list-style: none;
   padding: 0;

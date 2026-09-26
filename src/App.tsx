@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import {
   createRemoteList,
   deleteRemoteList,
@@ -61,10 +62,15 @@ export default function App() {
   const [split, setSplit] = useState<OptimizeResponse | null>(null);
   const [listOpen, setListOpen] = useState(false);
   const [scanning, setScanning] = useState(false);
-  const [scanNote, setScanNote] = useState("");
+  const [pendingAdd, setPendingAdd] = useState<{ name: string; qty: number } | null>(null);
+  const [listFlash, setListFlash] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [syncNote, setSyncNote] = useState("");
   const hydrated = useRef(false);
+  const dirtyList = useRef(false);
   const saveTimer = useRef<number>(0);
+  const itemInputRef = useRef<HTMLInputElement>(null);
+  const flashTimer = useRef<number>(0);
+  const flashRef = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {
     const saved = loadPostal();
@@ -95,15 +101,16 @@ export default function App() {
   }, [list, listTitle, postal, remoteListId, householdId]);
 
   useEffect(() => {
-    if (!listOpen && !scanning) return;
+    if (!listOpen && !scanning && !pendingAdd) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       if (scanning) setScanning(false);
+      else if (pendingAdd) setPendingAdd(null);
       else setListOpen(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [listOpen, scanning]);
+  }, [listOpen, scanning, pendingAdd]);
 
   async function hydrateLists(localItems: ListItem[], cap: string) {
     try {
@@ -113,7 +120,7 @@ export default function App() {
       if (open) {
         setRemoteListId(open.id);
         setListTitle(open.title);
-        setList(open.items.length ? open.items : localItems);
+        if (!dirtyList.current) setList(open.items.length ? open.items : localItems);
       } else {
         const created = await createRemoteList(householdId, {
           postalCode: cap || undefined,
@@ -121,7 +128,7 @@ export default function App() {
         });
         setRemoteListId(created.list.id);
         setListTitle(created.list.title);
-        setList(created.list.items);
+        if (!dirtyList.current) setList(created.list.items);
       }
       setSyncNote("");
     } catch {
@@ -163,23 +170,50 @@ export default function App() {
     if (postal) void boot(postal, next);
   }
 
-  function addItem(raw: string) {
+  function showFlash(kind: "ok" | "err", text: string, ms = kind === "err" ? 6000 : 3200) {
+    window.clearTimeout(flashTimer.current);
+    flushSync(() => setListFlash({ kind, text }));
+    flashTimer.current = window.setTimeout(() => setListFlash(null), ms);
+  }
+
+  function addItem(raw: string, amount = 1) {
     const query = raw.trim();
-    if (query.length < 2) return;
+    const n = Math.max(1, Math.floor(Number(amount) || 1));
+    if (query.length < 2) {
+      showFlash("err", "Erro");
+      return false;
+    }
+    dirtyList.current = true;
     setList((prev) => {
       const existing = prev.find(
         (it) => it.query.toLowerCase() === query.toLowerCase(),
       );
       if (existing) {
         return prev.map((it) =>
-          it.id === existing.id ? { ...it, qty: it.qty + 1 } : it,
+          it.id === existing.id ? { ...it, qty: it.qty + n } : it,
         );
       }
-      return [...prev, { id: uid(), query, qty: 1 }];
+      return [...prev, { id: uid(), query, qty: n }];
     });
     setDraftItem("");
-    setScanNote("");
+    setPendingAdd(null);
     setSplit(null);
+    showFlash("ok", "Adicionado");
+    return true;
+  }
+
+  function askQty(raw: string) {
+    const name = raw.trim();
+    if (name.length < 2) {
+      showFlash("err", "Erro");
+      return;
+    }
+    setPendingAdd({ name, qty: 1 });
+  }
+
+  function confirmPending() {
+    if (!pendingAdd) return;
+    addItem(pendingAdd.name, pendingAdd.qty);
   }
 
   async function comparePrices() {
@@ -341,7 +375,9 @@ export default function App() {
                   flyers={offers?.flyers ?? []}
                   chains={[...new Set((storesData?.stores ?? []).map((s) => s.chain))]}
                   loading={loading}
-                  onAdd={(name) => addItem(name)}
+                  onAdd={(name) => {
+                    addItem(name);
+                  }}
                 />
               </>
             )}
@@ -397,34 +433,82 @@ export default function App() {
                       )}). Sem catálogo público, os preços ficam no folheto.`
                     : "."}
                 </p>
-                <form
-                  className="add-row"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    addItem(draftItem);
-                  }}
-                >
-                  <input
-                    autoFocus
-                    value={draftItem}
-                    onChange={(e) => setDraftItem(e.target.value)}
-                    placeholder="ex. leite, pão, azeite..."
-                  />
-                  <div className="add-row-actions">
-                    <button
-                      type="button"
-                      className="scan"
-                      onClick={() => {
-                        setScanNote("");
-                        setScanning(true);
-                      }}
-                    >
-                      Código de barras
-                    </button>
-                    <button type="submit">Adicionar</button>
+                {pendingAdd ? (
+                  <div className="qty-ask">
+                    <p className="qty-ask-name">{pendingAdd.name}</p>
+                    <p className="hint">Quantas unidades?</p>
+                    <div className="qty">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPendingAdd((prev) =>
+                            prev ? { ...prev, qty: Math.max(1, prev.qty - 1) } : prev,
+                          )
+                        }
+                      >
+                        −
+                      </button>
+                      <strong>{pendingAdd.qty}</strong>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPendingAdd((prev) =>
+                            prev ? { ...prev, qty: prev.qty + 1 } : prev,
+                          )
+                        }
+                      >
+                        +
+                      </button>
+                    </div>
+                    <div className="add-row-actions">
+                      <button type="button" className="ghost" onClick={() => setPendingAdd(null)}>
+                        Cancelar
+                      </button>
+                      <button type="button" className="primary" onClick={confirmPending}>
+                        Adicionar
+                      </button>
+                    </div>
                   </div>
-                </form>
-                {scanNote ? <p className="hint">{scanNote}</p> : null}
+                ) : (
+                  <form
+                    className="add-row"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      askQty(draftItem);
+                    }}
+                  >
+                    <input
+                      ref={itemInputRef}
+                      autoFocus
+                      value={draftItem}
+                      onChange={(e) => setDraftItem(e.target.value)}
+                      placeholder="ex. leite, pão, azeite..."
+                    />
+                    <div className="add-row-actions">
+                      <button
+                        type="button"
+                        className="scan"
+                        onClick={() => {
+                          setListFlash(null);
+                          setScanning(true);
+                        }}
+                      >
+                        Código de barras
+                      </button>
+                      <button type="button" onClick={() => askQty(draftItem)}>
+                        Adicionar
+                      </button>
+                    </div>
+                  </form>
+                )}
+                <p
+                  ref={flashRef}
+                  className={`list-note${listFlash ? ` ${listFlash.kind}` : ""}`}
+                  role="status"
+                  aria-live="assertive"
+                >
+                  {listFlash?.text ?? ""}
+                </p>
                 <ul className="list">
                   {list.map((item) => (
                     <li key={item.id}>
@@ -495,18 +579,19 @@ export default function App() {
           {scanning ? (
             <BarcodeScan
               onClose={() => setScanning(false)}
-              onProduct={(name) => {
-                addItem(name);
-                setListOpen(true);
-                setScanning(false);
-                setScanNote(`${name} adicionado.`);
-              }}
-              onUnknown={() => {
+              onProduct={(name, amount) => addItem(name, amount)}
+              onGiveUp={() => {
                 setScanning(false);
                 setListOpen(true);
-                setScanNote("Código lido, mas não encontrámos o nome. Escreve o produto.");
+                showFlash("err", "Erro. Escreve o produto à mão.", 6000);
+                window.setTimeout(() => itemInputRef.current?.focus(), 50);
               }}
             />
+          ) : null}
+          {listFlash && !scanning && !listOpen ? (
+            <p className={`list-flash ${listFlash.kind}`} role="status">
+              {listFlash.text}
+            </p>
           ) : null}
         </>
       ) : null}
